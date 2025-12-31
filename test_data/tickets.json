@@ -1,0 +1,86 @@
+[
+  {
+    "ticket_id": "TICKET-001",
+    "customer_id": "CUST-001",
+    "channel": "email",
+    "subject": "Cobrança duplicada",
+    "description": "Recebi duas cobranças no meu cartão para o mesmo pedido. Preciso do reembolso imediato de uma delas. Pedido #12345.",
+    "priority": "P3",
+    "status": "open",
+    "current_phase": "triage",
+    "interactions_count": 0,
+    "expected_result": {
+      "priority": "P1",
+      "target_team": "billing",
+      "final_status": "resolved"
+    }
+  },
+  {
+    "ticket_id": "TICKET-002",
+    "customer_id": "CUST-002",
+    "channel": "chat",
+    "subject": "App crashou",
+    "description": "O aplicativo fecha toda vez que tento abrir a tela de perfil. Já tentei reinstalar mas não funcionou. Usando Android 13.",
+    "priority": "P3",
+    "status": "open",
+    "current_phase": "triage",
+    "interactions_count": 0,
+    "expected_result": {
+      "priority": "P2",
+      "target_team": "tech",
+      "final_status": "escalated",
+      "escalation_reason": "low_confidence"
+    }
+  },
+  {
+    "ticket_id": "TICKET-003",
+    "customer_id": "CUST-003",
+    "channel": "chat",
+    "subject": "Onde clico?",
+    "description": "Não consigo encontrar o botão para mudar minha senha. Onde fica?",
+    "priority": "P3",
+    "status": "open",
+    "current_phase": "triage",
+    "interactions_count": 0,
+    "expected_result": {
+      "priority": "P3",
+      "target_team": "general",
+      "final_status": "resolved"
+    }
+  },
+  {
+    "ticket_id": "TICKET-004",
+    "customer_id": "CUST-004",
+    "channel": "phone",
+    "subject": "Vou cancelar!",
+    "description": "Isso é inaceitável! Já faz uma semana que meu problema não foi resolvido. Vou cancelar minha conta e processar vocês! Péssimo serviço!",
+    "priority": "P3",
+    "status": "open",
+    "current_phase": "triage",
+    "interactions_count": 0,
+    "expected_result": {
+      "priority": "P1",
+      "target_team": "general",
+      "final_status": "escalated",
+      "escalation_reason": "negative_sentiment"
+    }
+  },
+  {
+    "ticket_id": "TICKET-005",
+    "customer_id": "CUST-005",
+    "channel": "email",
+    "subject": "Reembolso urgente",
+    "description": "Preciso do reembolso urgente! Fui cobrado duas vezes e estou precisando desse dinheiro. Já faz mais de 5 horas!",
+    "priority": "P3",
+    "status": "open",
+    "current_phase": "triage",
+    "interactions_count": 0,
+    "created_at": "2025-12-31T10:00:00Z",
+    "expected_result": {
+      "priority": "P1",
+      "target_team": "billing",
+      "final_status": "escalated",
+      "escalation_reason": "sla_breach"
+    }
+  }
+]

@@ -1,0 +1,88 @@
+"""
+MongoDB connection management using Motor (async)
+Criamos o motor como assincrono para que possamos os agentes possam registrar sem bloquear a thread principal
+"""
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase, AsyncIOMotorCollection
+from typing import Optional
+from src.config import settings
+
+
+# Global async client instance
+_client: Optional[AsyncIOMotorClient] = None
+
+
+def get_client() -> AsyncIOMotorClient:
+    """
+    Get or create async MongoDB client instance
+    
+    Returns:
+        AsyncIOMotorClient: Async MongoDB client
+    """
+    global _client
+    if _client is None:
+        _client = AsyncIOMotorClient(settings.mongodb_uri)
+    return _client
+
+
+async def get_database() -> AsyncIOMotorDatabase:
+    """
+    Get the customer support database (async)
+    
+    Returns:
+        AsyncIOMotorDatabase: Async MongoDB database instance
+    """
+    client = get_client()
+    return client[settings.database_name]
+
+
+async def get_collection(collection_name: str) -> AsyncIOMotorCollection:
+    """
+    Get a specific collection from the database (async)
+    
+    Args:
+        collection_name: Name of the collection
+        
+    Returns:
+        AsyncIOMotorCollection: Async MongoDB collection instance
+    """
+    db = await get_database()
+    return db[collection_name]
+
+
+async def close_connection():
+    """Close the async MongoDB connection"""
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None
+
+
+# Collection names
+COLLECTION_TICKETS = "tickets"
+COLLECTION_AGENT_STATES = "agent_states"
+COLLECTION_INTERACTIONS = "interactions"
+COLLECTION_ROUTING_DECISIONS = "routing_decisions"
+COLLECTION_AUDIT_LOGS = "audit_logs"
+
+
+async def ensure_indexes():
+    """
+    Create all required indexes for the database
+    """
+    db = await get_database()
+    
+    # Tickets indexes
+    await db[COLLECTION_TICKETS].create_index([("ticket_id", 1)], unique=True)
+    await db[COLLECTION_TICKETS].create_index([("current_phase", 1), ("status", 1)])
+    
+    # Agent states indexes
+    await db[COLLECTION_AGENT_STATES].create_index([("ticket_id", 1), ("agent_name", 1)], unique=True)
+    
+    # Audit logs indexes
+    await db[COLLECTION_AUDIT_LOGS].create_index([("ticket_id", 1), ("timestamp", -1)])
+    
+    # Interactions indexes
+    await db[COLLECTION_INTERACTIONS].create_index([("ticket_id", 1), ("created_at", -1)])
+    
+    # Routing decisions indexes
+    await db[COLLECTION_ROUTING_DECISIONS].create_index([("ticket_id", 1)])
