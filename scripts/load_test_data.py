@@ -3,8 +3,13 @@ Script to load test data into MongoDB
 """
 import asyncio
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
+
+# Add project root to sys.path to enable imports from src
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.database import (
     get_collection,
     COLLECTION_TICKETS,

@@ -122,7 +122,7 @@ class ResolverAgent(BaseAgent):
         sentiment = triage_result.get("sentiment", 0.0)
         
         # Generate response based on team and category
-        response = self._generate_response_text(
+        response = await self._generate_response_text(
             ticket,
             target_team,
             category,
@@ -146,7 +146,7 @@ class ResolverAgent(BaseAgent):
             "message": "Response generated" if not needs_escalation else "Escalation recommended"
         }
     
-    def _generate_response_text(
+    async def _generate_response_text(
         self,
         ticket: Dict[str, Any],
         target_team: str,
@@ -155,7 +155,84 @@ class ResolverAgent(BaseAgent):
         sentiment: float
     ) -> str:
         """
-        Generate a draft response based on ticket context
+        Generate a draft response based on ticket context using OpenAI
+        
+        Args:
+            ticket: Ticket data
+            target_team: Team assigned to handle
+            category: Ticket category
+            priority: Ticket priority
+            sentiment: Customer sentiment score
+            
+        Returns:
+            Draft response text
+        """
+        from src.utils.openai_client import get_openai_client
+        
+        subject = ticket.get("subject", "")
+        description = ticket.get("description", "")
+        channel = ticket.get("channel", "")
+        
+        # Determine tone based on sentiment
+        if sentiment < -0.5:
+            tone = "empathetic and apologetic"
+        elif sentiment > 0.3:
+            tone = "friendly and positive"
+        else:
+            tone = "professional and neutral"
+        
+        # Determine urgency based on priority
+        urgency_note = ""
+        if priority == "P1":
+            urgency_note = "IMPORTANT: This is a high-priority ticket and should be addressed urgently."
+        
+        # System prompt for response generation
+        system_prompt = f"""You are a customer support agent for the {target_team} team. Generate a helpful, professional response to the customer's inquiry.
+
+Guidelines:
+- Be {tone} in your tone
+- Address the customer's specific issue
+- Provide helpful next steps or information
+- Keep the response concise but comprehensive
+- Use Portuguese language
+- Sign off appropriately as the {target_team} team
+
+{urgency_note}"""
+
+        user_message = f"""Customer Inquiry:
+Subject: {subject}
+Description: {description}
+Channel: {channel}
+Category: {category}
+Priority: {priority}
+Sentiment: {sentiment:.2f}
+
+Generate a helpful response to this customer."""
+
+        try:
+            client = get_openai_client()
+            response = await client.chat_completion(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.7,
+                max_tokens=500
+            )
+            return response.strip()
+        except Exception as e:
+            # Fallback to template-based response if OpenAI fails
+            print(f"OpenAI response generation failed, falling back to template: {str(e)}")
+            return self._generate_response_text_fallback(ticket, target_team, category, priority, sentiment)
+    
+    def _generate_response_text_fallback(
+        self,
+        ticket: Dict[str, Any],
+        target_team: str,
+        category: str,
+        priority: str,
+        sentiment: float
+    ) -> str:
+        """
+        Fallback template-based response when OpenAI is unavailable
         
         Args:
             ticket: Ticket data

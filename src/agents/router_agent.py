@@ -103,7 +103,115 @@ class RouterAgent(BaseAgent):
         customer_history: list
     ) -> Dict[str, Any]:
         """
-        Determine which team should handle the ticket
+        Determine which team should handle the ticket using OpenAI
+        
+        Args:
+            ticket: Ticket data
+            triage_result: Results from triage agent
+            customer_history: Customer's previous tickets
+            
+        Returns:
+            Dict with target_team, confidence, and reasons
+        """
+        from src.utils.openai_client import get_openai_client
+        
+        subject = ticket.get("subject", "")
+        description = ticket.get("description", "")
+        priority = triage_result.get("priority", "P3")
+        category = triage_result.get("category", "general")
+        sentiment = triage_result.get("sentiment", 0.0)
+        
+        # Build customer history context
+        history_context = ""
+        if customer_history:
+            history_context = "\nCustomer History (recent tickets):\n" + "\n".join([
+                f"- {t.get('ticket_id', 'N/A')}: {t.get('priority', 'N/A')} -> {t.get('target_team', 'N/A')}"
+                for t in customer_history[-5:]
+            ])
+        
+        # System prompt for routing decision
+        system_prompt = """You are a customer support routing specialist. Determine which team should handle this ticket.
+
+Available teams:
+1. billing: Payment, refund, invoice, pricing, subscription issues
+2. tech: Technical problems, bugs, app/website issues, login problems, installation
+3. general: General inquiries, account questions, how-to, feature requests
+
+Consider:
+- The ticket category from triage
+- The priority level
+- Customer sentiment
+- Customer's previous ticket patterns (if they have repeated issues with a specific team)
+
+Return your response as a JSON object with these fields:
+- target_team: One of "billing", "tech", or "general"
+- confidence: A number between 0.0 and 1.0
+- reasons: An array of strings explaining your decision"""
+
+        user_message = f"""Ticket Information:
+Subject: {subject}
+Description: {description}
+Priority: {priority}
+Category (from triage): {category}
+Sentiment: {sentiment:.2f}
+{history_context}
+
+Which team should handle this ticket?"""
+
+        try:
+            client = get_openai_client()
+            result = await client.json_completion(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.3,
+                max_tokens=300
+            )
+            
+            # Validate and normalize the results
+            target_team = self._validate_target_team(result.get("target_team", "general"))
+            confidence = self._validate_confidence(result.get("confidence", 0.8))
+            reasons = self._validate_reasons(result.get("reasons", []))
+            
+            return {
+                "target_team": target_team,
+                "confidence": confidence,
+                "reasons": reasons,
+                "decisions": reasons
+            }
+        except Exception as e:
+            # Fallback to rule-based routing if OpenAI fails
+            print(f"OpenAI routing failed, falling back to rule-based: {str(e)}")
+            return self._make_routing_decision_fallback(ticket, triage_result, customer_history)
+    
+    def _validate_target_team(self, target_team: str) -> str:
+        """Validate and normalize target_team value"""
+        target_team = str(target_team).lower().strip()
+        if target_team in ["billing", "tech", "general"]:
+            return target_team
+        return "general"
+    
+    def _validate_confidence(self, confidence: Any) -> float:
+        """Validate and normalize confidence value"""
+        try:
+            confidence = float(confidence)
+            return max(0.0, min(1.0, confidence))
+        except (ValueError, TypeError):
+            return 0.8
+    
+    def _validate_reasons(self, reasons: Any) -> list:
+        """Validate and normalize reasons value"""
+        if isinstance(reasons, list):
+            return [str(r) for r in reasons if r]
+        return [str(reasons)] if reasons else []
+    
+    def _make_routing_decision_fallback(
+        self,
+        ticket: Dict[str, Any],
+        triage_result: Dict[str, Any],
+        customer_history: list
+    ) -> Dict[str, Any]:
+        """
+        Fallback rule-based routing when OpenAI is unavailable
         
         Args:
             ticket: Ticket data
@@ -115,7 +223,7 @@ class RouterAgent(BaseAgent):
         """
         # Start with triage category
         target_team = triage_result.get("category", "general")
-        reasons = [f"Based on triage category: {target_team}"]
+        reasons = [f"Based on triage category: {target_team} (fallback)"]
         confidence = 0.8
         
         # Analyze customer history for patterns

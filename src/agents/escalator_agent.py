@@ -104,7 +104,155 @@ class EscalatorAgent(BaseAgent):
         interactions: list
     ) -> Dict[str, Any]:
         """
-        Make the final escalation decision
+        Make final escalation decision using OpenAI
+        
+        Args:
+            ticket: Ticket data
+            triage_result: Results from triage agent
+            routing_result: Results from router agent
+            resolver_result: Results from resolver agent
+            interactions: List of interactions
+            
+        Returns:
+            Dict with escalation decision and reasons
+        """
+        from src.utils.openai_client import get_openai_client
+        
+        subject = ticket.get("subject", "")
+        description = ticket.get("description", "")
+        priority = ticket.get("priority", "P3")
+        interactions_count = len(interactions)
+        sentiment = triage_result.get("sentiment", 0.0)
+        resolver_confidence = resolver_result.get("confidence", 0.8)
+        resolver_needs_escalation = resolver_result.get("needs_escalation", False)
+        resolver_escalation_reasons = resolver_result.get("escalation_reasons", [])
+        target_team = routing_result.get("target_team", "general")
+        
+        # SLA check
+        created_at = ticket.get("created_at")
+        sla_hours = 0.0
+        if created_at:
+            time_diff = datetime.utcnow() - created_at
+            sla_hours = time_diff.total_seconds() / 3600
+        
+        # Build interaction context
+        interaction_context = ""
+        if interactions:
+            interaction_context = "\nRecent interactions:\n" + "\n".join([
+                f"- {i.get('content', '')[:100]}" for i in interactions[-3:]
+            ])
+        
+        # Get resolver's generated response (if available)
+        resolver_response = resolver_result.get("response", "N/A")
+        
+        # System prompt for escalation decision
+        system_prompt = f"""You are a customer support escalation specialist. Decide whether this ticket should be escalated to a human agent or can be resolved automatically.
+
+Escalation Thresholds (MUST respect these):
+- Max interactions before escalation: {settings.escalation_max_interactions}
+- Minimum sentiment threshold: {settings.escalation_min_sentiment}
+- Minimum resolver confidence: {settings.escalation_min_confidence}
+- SLA breach threshold: {settings.escalation_sla_hours} hours
+
+Consider these factors:
+1. Ticket priority (P1 = critical, P2 = important, P3 = normal)
+2. Number of interactions (too many back-and-forth = escalate)
+3. Customer sentiment (very negative = escalate)
+4. Resolver's confidence (low confidence = escalate)
+5. SLA compliance (breach = escalate)
+6. The resolver's generated response quality
+7. Overall complexity of issue
+
+Return your response as a JSON object with these fields:
+- escalate_to_human: true or false
+- reasons: array of strings explaining your decision
+- confidence: number between 0.0 and 1.0"""
+
+        user_message = f"""Ticket Information:
+Subject: {subject}
+Description: {description}
+Priority: {priority}
+Target Team: {target_team}
+Sentiment: {sentiment:.2f}
+Interactions Count: {interactions_count}
+SLA Hours: {sla_hours:.2f}h
+Resolver Confidence: {resolver_confidence:.2f}
+Resolver Recommended Escalation: {resolver_needs_escalation}
+Resolver Escalation Reasons: {resolver_escalation_reasons}
+{interaction_context}
+
+Resolver's Generated Response:
+{resolver_response[:500]}
+
+Should this ticket be escalated to a human agent?"""
+
+        try:
+            client = get_openai_client()
+            result = await client.json_completion(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.2,
+                max_tokens=400
+            )
+            
+            # Validate and normalize results
+            escalate_to_human = self._validate_escalation(result.get("escalate_to_human", False))
+            reasons = self._validate_reasons(result.get("reasons", []))
+            confidence = self._validate_confidence(result.get("confidence", 0.9))
+            
+            # Determine message
+            if escalate_to_human:
+                message = f"Ticket escalated to human. Reasons: {', '.join(reasons)}"
+            else:
+                message = "Ticket can be resolved automatically"
+            
+            return {
+                "escalate_to_human": escalate_to_human,
+                "reasons": reasons,
+                "priority": priority,
+                "sentiment": sentiment,
+                "resolver_confidence": resolver_confidence,
+                "sla_hours": sla_hours,
+                "interactions_count": interactions_count,
+                "message": message
+            }
+        except Exception as e:
+            # Fallback to rule-based escalation if OpenAI fails
+            print(f"OpenAI escalation decision failed, falling back to rule-based: {str(e)}")
+            return self._make_escalation_decision_fallback(
+                ticket, triage_result, routing_result, resolver_result, interactions
+            )
+    
+    def _validate_escalation(self, escalate: Any) -> bool:
+        """Validate and normalize escalation value"""
+        if isinstance(escalate, bool):
+            return escalate
+        return str(escalate).lower() in ["true", "1", "yes"]
+    
+    def _validate_reasons(self, reasons: Any) -> list:
+        """Validate and normalize reasons value"""
+        if isinstance(reasons, list):
+            return [str(r) for r in reasons if r]
+        return [str(reasons)] if reasons else []
+    
+    def _validate_confidence(self, confidence: Any) -> float:
+        """Validate and normalize confidence value"""
+        try:
+            confidence = float(confidence)
+            return max(0.0, min(1.0, confidence))
+        except (ValueError, TypeError):
+            return 0.9
+    
+    def _make_escalation_decision_fallback(
+        self,
+        ticket: Dict[str, Any],
+        triage_result: Dict[str, Any],
+        routing_result: Dict[str, Any],
+        resolver_result: Dict[str, Any],
+        interactions: list
+    ) -> Dict[str, Any]:
+        """
+        Fallback rule-based escalation when OpenAI is unavailable
         
         Args:
             ticket: Ticket data
@@ -143,22 +291,22 @@ class EscalatorAgent(BaseAgent):
         # Rule 1: P1 with too many interactions
         if priority == "P1" and interactions_count > settings.escalation_max_interactions:
             escalate_to_human = True
-            reasons.append(f"P1 ticket with {interactions_count} interactions exceeds threshold")
+            reasons.append(f"P1 ticket with {interactions_count} interactions exceeds threshold (fallback)")
         
         # Rule 2: Very negative sentiment
         if sentiment < settings.escalation_min_sentiment:
             escalate_to_human = True
-            reasons.append(f"Customer sentiment {sentiment:.2f} below threshold {settings.escalation_min_sentiment}")
+            reasons.append(f"Customer sentiment {sentiment:.2f} below threshold {settings.escalation_min_sentiment} (fallback)")
         
         # Rule 3: Low resolver confidence
         if resolver_confidence < settings.escalation_min_confidence:
             escalate_to_human = True
-            reasons.append(f"Resolver confidence {resolver_confidence:.2f} below threshold {settings.escalation_min_confidence}")
+            reasons.append(f"Resolver confidence {resolver_confidence:.2f} below threshold {settings.escalation_min_confidence} (fallback)")
         
         # Rule 4: SLA breach
         if sla_hours > settings.escalation_sla_hours:
             escalate_to_human = True
-            reasons.append(f"SLA breach: {sla_hours:.1f} hours exceeds threshold {settings.escalation_sla_hours}h")
+            reasons.append(f"SLA breach: {sla_hours:.1f} hours exceeds threshold {settings.escalation_sla_hours}h (fallback)")
         
         # Add resolver's escalation reasons if any
         if resolver_needs_escalation:
@@ -190,10 +338,10 @@ class EscalatorAgent(BaseAgent):
         session: Optional[AsyncIOMotorClientSession] = None
     ):
         """
-        Apply the escalation decision to the ticket
+        Apply escalation decision to ticket
         
         Args:
-            ticket_id: ID of the ticket
+            ticket_id: ID of ticket
             escalation: Escalation decision data
             session: Optional MongoDB session
         """

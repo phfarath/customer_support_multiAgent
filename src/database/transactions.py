@@ -20,7 +20,7 @@ def with_transaction(func: Callable) -> Callable:
     @wraps(func)
     async def wrapper(*args, **kwargs) -> Any:
         client = get_client()
-        session: AsyncIOMotorClientSession = client.start_session()
+        session: AsyncIOMotorClientSession = await client.start_session()
         
         try:
             async with session.start_transaction():

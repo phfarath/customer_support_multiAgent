@@ -94,7 +94,125 @@ class TriageAgent(BaseAgent):
         interactions: list
     ) -> Dict[str, Any]:
         """
-        Analyze ticket to determine priority, category, and sentiment
+        Analyze ticket to determine priority, category, and sentiment using OpenAI
+        
+        Args:
+            ticket: Ticket data
+            interactions: List of previous interactions
+            
+        Returns:
+            Dict with priority, category, sentiment, and confidence
+        """
+        from src.utils.openai_client import get_openai_client
+        
+        description = ticket.get("description", "")
+        subject = ticket.get("subject", "")
+        channel = ticket.get("channel", "")
+        
+        # Build interaction context
+        interaction_context = ""
+        if interactions:
+            interaction_context = "\nPrevious interactions:\n" + "\n".join([
+                f"- {i.get('content', '')[:100]}" for i in interactions[-3:]
+            ])
+        
+        # System prompt for triage analysis
+        system_prompt = """You are a customer support triage specialist. Analyze the ticket and determine:
+1. Priority (P1, P2, or P3):
+   - P1: Urgent/critical issues (system down, security breach, immediate financial impact, cancellation threats)
+   - P2: Important but not urgent (billing issues, bugs, functional problems)
+   - P3: General inquiries, how-to questions, low urgency
+
+2. Category (billing, tech, or general):
+   - billing: Payment, refund, invoice, pricing issues
+   - tech: Technical problems, bugs, app/website issues, login problems
+   - general: General inquiries, account questions, how-to
+
+3. Sentiment (-1.0 to 1.0):
+   - -1.0 to -0.3: Very negative to negative
+   - -0.3 to 0.3: Neutral
+   - 0.3 to 1.0: Positive to very positive
+
+4. Confidence (0.0 to 1.0): How confident are you in this analysis?
+
+Return your response as a JSON object with these fields: priority, category, sentiment, confidence"""
+
+        user_message = f"""Ticket Information:
+Subject: {subject}
+Description: {description}
+Channel: {channel}
+{interaction_context}
+
+Analyze this ticket and provide the triage assessment."""
+
+        try:
+            client = get_openai_client()
+            result = await client.json_completion(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.3,
+                max_tokens=300
+            )
+            
+            # Validate and normalize the results
+            priority = self._validate_priority(result.get("priority", "P3"))
+            category = self._validate_category(result.get("category", "general"))
+            sentiment = self._validate_sentiment(result.get("sentiment", 0.0))
+            confidence = self._validate_confidence(result.get("confidence", 0.7))
+            
+            return {
+                "priority": priority,
+                "category": category,
+                "sentiment": sentiment,
+                "confidence": confidence,
+                "decisions": [
+                    f"Priority set to {priority}",
+                    f"Category: {category}",
+                    f"Sentiment: {sentiment:.2f}"
+                ]
+            }
+        except Exception as e:
+            # Fallback to rule-based analysis if OpenAI fails
+            print(f"OpenAI analysis failed, falling back to rule-based: {str(e)}")
+            return self._analyze_ticket_fallback(ticket, interactions)
+    
+    def _validate_priority(self, priority: str) -> str:
+        """Validate and normalize priority value"""
+        priority = str(priority).upper().strip()
+        if priority in ["P1", "P2", "P3"]:
+            return priority
+        return "P3"
+    
+    def _validate_category(self, category: str) -> str:
+        """Validate and normalize category value"""
+        category = str(category).lower().strip()
+        if category in ["billing", "tech", "general"]:
+            return category
+        return "general"
+    
+    def _validate_sentiment(self, sentiment: Any) -> float:
+        """Validate and normalize sentiment value"""
+        try:
+            sentiment = float(sentiment)
+            return max(-1.0, min(1.0, sentiment))
+        except (ValueError, TypeError):
+            return 0.0
+    
+    def _validate_confidence(self, confidence: Any) -> float:
+        """Validate and normalize confidence value"""
+        try:
+            confidence = float(confidence)
+            return max(0.0, min(1.0, confidence))
+        except (ValueError, TypeError):
+            return 0.7
+    
+    def _analyze_ticket_fallback(
+        self,
+        ticket: Dict[str, Any],
+        interactions: list
+    ) -> Dict[str, Any]:
+        """
+        Fallback rule-based analysis when OpenAI is unavailable
         
         Args:
             ticket: Ticket data
@@ -107,7 +225,7 @@ class TriageAgent(BaseAgent):
         subject = ticket.get("subject", "").lower()
         text = f"{subject} {description}"
         
-        # Priority analysis (keyword-based for now, can be enhanced with AI)
+        # Priority analysis (keyword-based)
         priority = self._determine_priority(text)
         
         # Category analysis
@@ -125,9 +243,9 @@ class TriageAgent(BaseAgent):
             "sentiment": sentiment,
             "confidence": confidence,
             "decisions": [
-                f"Priority set to {priority}",
-                f"Category: {category}",
-                f"Sentiment: {sentiment:.2f}"
+                f"Priority set to {priority} (fallback)",
+                f"Category: {category} (fallback)",
+                f"Sentiment: {sentiment:.2f} (fallback)"
             ]
         }
     

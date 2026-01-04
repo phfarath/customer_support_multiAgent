@@ -88,11 +88,10 @@ class BaseAgent(ABC):
             "agent_name": self.name,
             "phase": self.get_phase_name(),
             "state": state,
-            "lock_version": 0,
             "updated_at": datetime.utcnow()
         }
         
-        # Upsert the agent state
+        # Upsert the agent state - use $inc to initialize lock_version on first insert
         if session:
             await collection.update_one(
                 {"ticket_id": ticket_id, "agent_name": self.name},
