@@ -19,6 +19,7 @@ class InteractionBase(BaseModel):
     ticket_id: str
     type: InteractionType
     content: str
+    channel: Optional[str] = None
     sentiment_score: float = 0.0
 
 

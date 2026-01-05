@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from src.config import settings
 from src.database import ensure_indexes, close_connection
-from src.api import router
+from src.api import router, ingest_router, telegram_router
 
 
 @asynccontextmanager
@@ -42,6 +42,8 @@ app.add_middleware(
 
 # Include routes
 app.include_router(router)
+app.include_router(ingest_router)
+app.include_router(telegram_router)
 
 
 @app.get("/")
@@ -57,7 +59,9 @@ async def root():
             "run_pipeline": "POST /api/run_pipeline/{ticket_id}",
             "get_ticket": "GET /api/tickets/{ticket_id}",
             "get_audit": "GET /api/tickets/{ticket_id}/audit",
-            "list_tickets": "GET /api/tickets"
+            "list_tickets": "GET /api/tickets",
+            "ingest_message": "POST /api/ingest-message",
+            "telegram_webhook": "POST /telegram/webhook"
         }
     }
 

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_reload: bool = True
     
+    # Telegram Configuration
+    telegram_bot_token: Optional[str] = None
+    
     # Agent Configuration
     escalation_max_interactions: int = 2
     escalation_min_confidence: float = 0.6

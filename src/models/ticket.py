@@ -35,6 +35,8 @@ class TicketChannel(str, Enum):
     EMAIL = "email"
     CHAT = "chat"
     PHONE = "phone"
+    TELEGRAM = "telegram"
+    WHATSAPP = "whatsapp"
 
 
 class TicketBase(BaseModel):
@@ -42,6 +44,7 @@ class TicketBase(BaseModel):
     ticket_id: str
     customer_id: str
     channel: TicketChannel
+    external_user_id: Optional[str] = None
     subject: str
     description: str
     priority: TicketPriority = TicketPriority.P3
