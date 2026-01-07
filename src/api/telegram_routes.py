@@ -36,12 +36,14 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
     try:
         # Get Telegram update from request body
         update = await request.json()
+        logger.info(f"Received Telegram webhook: {update}")
         
         # Initialize Telegram adapter
         adapter = TelegramAdapter()
         
         # Parse the webhook update
         parsed = adapter.parse_webhook_update(update)
+        logger.info(f"Parsed webhook update: {parsed}")
         
         if not parsed:
             logger.warning(f"Received update without message: {update.get('update_id')}")
@@ -51,6 +53,9 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
         chat_id = parsed["metadata"].get("chat_id")
         callback_query_id = parsed["metadata"].get("callback_query_id")
         
+        # Extract company_id from metadata if available (for multi-tenancy)
+        company_id = parsed["metadata"].get("company_id")
+        
         # Create ingest message request
         ingest_request = IngestMessageRequest(
             channel=IngestChannel.TELEGRAM,
@@ -59,8 +64,14 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
             metadata=parsed["metadata"]
         )
         
+        # Add company_id to metadata if available
+        if company_id:
+            ingest_request.metadata["company_id"] = company_id
+        
         # Process the message through the ingest endpoint
+        logger.info(f"Calling ingest_message with: {ingest_request}")
         response = await ingest_message(ingest_request)
+        logger.info(f"Received response from ingest_message: {response}")
         
         # Send the reply back to Telegram
         if chat_id and response.reply_text:

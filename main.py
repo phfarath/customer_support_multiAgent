@@ -1,12 +1,19 @@
 """
 Main FastAPI application for MultiAgent Customer Support System
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from src.config import settings
 from src.database import ensure_indexes, close_connection
-from src.api import router, ingest_router, telegram_router
+from src.api import router, ingest_router, telegram_router, company_router
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 @asynccontextmanager

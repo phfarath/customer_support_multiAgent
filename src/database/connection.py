@@ -24,9 +24,9 @@ def get_client() -> AsyncIOMotorClient:
     return _client
 
 
-async def get_database() -> AsyncIOMotorDatabase:
+def get_database() -> AsyncIOMotorDatabase:
     """
-    Get the customer support database (async)
+    Get the customer support database
     
     Returns:
         AsyncIOMotorDatabase: Async MongoDB database instance
@@ -35,9 +35,9 @@ async def get_database() -> AsyncIOMotorDatabase:
     return client[settings.database_name]
 
 
-async def get_collection(collection_name: str) -> AsyncIOMotorCollection:
+def get_collection(collection_name: str) -> AsyncIOMotorCollection:
     """
-    Get a specific collection from the database (async)
+    Get a specific collection from the database
     
     Args:
         collection_name: Name of the collection
@@ -45,7 +45,7 @@ async def get_collection(collection_name: str) -> AsyncIOMotorCollection:
     Returns:
         AsyncIOMotorCollection: Async MongoDB collection instance
     """
-    db = await get_database()
+    db = get_database()
     return db[collection_name]
 
 
@@ -63,19 +63,24 @@ COLLECTION_AGENT_STATES = "agent_states"
 COLLECTION_INTERACTIONS = "interactions"
 COLLECTION_ROUTING_DECISIONS = "routing_decisions"
 COLLECTION_AUDIT_LOGS = "audit_logs"
+COLLECTION_COMPANY_CONFIGS = "company_configs"
 
 
 async def ensure_indexes():
     """
     Create all required indexes for the database
     """
-    db = await get_database()
+    db = get_database()
     
     # Tickets indexes
     await db[COLLECTION_TICKETS].create_index([("ticket_id", 1)], unique=True)
     await db[COLLECTION_TICKETS].create_index([("current_phase", 1), ("status", 1)])
     
-    # Agent states indexes
+    # Agent states indexes - drop incorrect index if exists and create correct composite index
+    try:
+        await db[COLLECTION_AGENT_STATES].drop_index("agent_name_1")
+    except:
+        pass  # Index doesn't exist, ignore
     await db[COLLECTION_AGENT_STATES].create_index([("ticket_id", 1), ("agent_name", 1)], unique=True)
     
     # Audit logs indexes

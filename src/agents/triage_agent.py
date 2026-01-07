@@ -396,7 +396,7 @@ Analyze this ticket and provide the triage assessment."""
             session: Optional MongoDB session
         """
         # Update ticket with priority
-        tickets_collection = await get_collection(COLLECTION_TICKETS)
+        tickets_collection = get_collection(COLLECTION_TICKETS)
         
         update_data = {
             "priority": analysis["priority"],
@@ -417,7 +417,7 @@ Analyze this ticket and provide the triage assessment."""
             )
         
         # Create interaction record
-        interactions_collection = await get_collection(COLLECTION_INTERACTIONS)
+        interactions_collection = get_collection(COLLECTION_INTERACTIONS)
         
         interaction = InteractionCreate(
             ticket_id=ticket_id,
@@ -435,7 +435,7 @@ Analyze this ticket and provide the triage assessment."""
             await interactions_collection.insert_one(interaction_data)
         
         # Create audit log
-        audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+        audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         
         audit_log = AuditLogCreate(
             ticket_id=ticket_id,

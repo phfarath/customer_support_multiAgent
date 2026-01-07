@@ -57,6 +57,7 @@ class ResolverAgent(BaseAgent):
         triage_result = context.get("triage_result", {})
         routing_result = context.get("routing_result", {})
         interactions = context.get("interactions", [])
+        company_config = context.get("company_config")
         
         if not ticket:
             return AgentResult(
@@ -186,18 +187,47 @@ class ResolverAgent(BaseAgent):
         if priority == "P1":
             urgency_note = "IMPORTANT: This is a high-priority ticket and should be addressed urgently."
         
+        # Build company context for the prompt
+        company_context = ""
+        if company_config:
+            company_name = company_config.company_name or "nossa empresa"
+            company_context = f"""
+            
+            === CONTEXTO DA EMPRESA ===
+            Empresa: {company_name}
+            
+            Políticas:
+            - Política de Reembolso: {company_config.refund_policy or 'Não especificada'}
+            - Política de Cancelamento: {company_config.cancellation_policy or 'Não especificada'}
+            
+            Métodos de Pagamento: {', '.join(company_config.payment_methods) if company_config.payment_methods else 'Não especificados'}
+            
+            Produtos/Serviços: {', '.join([p.get('name', 'Produto não especificado') for p in (company_config.products or [])])}
+            
+            Horário de Atendimento: {company_config.business_hours or 'Não especificado'}
+            
+            === FIM DO CONTEXTO ===
+            """
+        
         # System prompt for response generation
-        system_prompt = f"""You are a customer support agent for the {target_team} team. Generate a helpful, professional response to the customer's inquiry.
+        system_prompt = f"""You are a friendly customer support bot for the {target_team} team. Your goal is to help customers in a natural, conversational way.
 
-Guidelines:
-- Be {tone} in your tone
-- Address the customer's specific issue
-- Provide helpful next steps or information
-- Keep the response concise but comprehensive
-- Use Portuguese language
-- Sign off appropriately as the {target_team} team
+Important guidelines:
+- Be {tone} and conversational - write like a real person would speak
+- Start with a friendly greeting (Olá, Oi, Bom dia, etc.)
+- Address the customer's specific issue directly
+- Provide helpful next steps or information clearly
+- Keep responses concise but comprehensive
+- Use natural, everyday Portuguese - avoid overly formal language
+- Don't use phrases like "Prezado(a) cliente" - be more personal
+- Sign off naturally (Até logo, Um abraço, etc.)
+- Present yourself as a helpful support assistant, not a robot
 
-{urgency_note}"""
+{company_context}
+
+{urgency_note}
+
+Remember: You're having a conversation with a real person. Be warm, understanding, and helpful."""
 
         user_message = f"""Customer Inquiry:
 Subject: {subject}
@@ -249,67 +279,66 @@ Generate a helpful response to this customer."""
         
         # Adjust tone based on sentiment
         if sentiment < -0.5:
-            greeting = "Prezado(a) cliente,"
-            apology = "Lamentamos muito pela experiência negativa."
+            greeting = "Oi,"
+            apology = "Sinto muito que você teve uma experiência ruim."
         elif sentiment > 0.3:
             greeting = "Olá,"
             apology = ""
         else:
-            greeting = "Prezado(a) cliente,"
+            greeting = "Oi,"
             apology = ""
         
         # Generate response based on category
         if category == "billing":
             response = f"""{greeting}
-
-Obrigado por entrar em contato conosco. {apology}
-
-Recebemos sua solicitação sobre: {subject}
-
-Nossa equipe de cobranças está analisando o seu caso. Para prosseguirmos, precisamos de algumas informações adicionais:
+ 
+Entendi que você precisa de ajuda com faturamento. {apology}
+ 
+Sobre: {subject}
+ 
+Para te ajudar melhor, me conta um pouco mais sobre o que aconteceu? Preciso de:
 - Número do pedido ou transação
-- Data da cobrança
-- Comprovante de pagamento (se aplicável)
-
-Estamos trabalhando para resolver isso o mais rápido possível.
-
-Atenciosamente,
-Equipe de Cobranças"""
+- Quando foi a cobrança
+- Se tem algum comprovante
+ 
+Assim que eu consiga te ajudar da melhor forma!
+ 
+Um abraço"""
         
         elif category == "tech":
             response = f"""{greeting}
-
-Obrigado por reportar este problema. {apology}
-
-Recebemos sua solicitação sobre: {subject}
-
-Nossa equipe técnica está analisando o seu caso. Para nos ajudar a diagnosticar o problema:
-- Qual dispositivo/sistema você está usando?
+ 
+Vi que você está com um problema técnico. {apology}
+ 
+Sobre: {subject}
+ 
+Vamos resolver isso juntos! Para eu entender melhor:
+- Qual dispositivo ou sistema você está usando?
 - Quando o problema começou?
-- Você já tentou alguma solução?
-
-Estamos trabalhando para resolver isso o mais rápido possível.
-
-Atenciosamente,
-Equipe Técnica"""
+- Já tentou alguma solução?
+ 
+Me avisa se precisar de mais alguma coisa, tá?
+ 
+Um abraço"""
         
         else:  # general
             response = f"""{greeting}
-
-Obrigado por entrar em contato conosco. {apology}
-
-Recebemos sua solicitação sobre: {subject}
-
-Nossa equipe está analisando sua solicitação e retornaremos em breve com uma resposta.
-
-Atenciosamente,
-Equipe de Atendimento"""
+ 
+Obrigado por entrar em contato! {apology}
+ 
+Sobre: {subject}
+ 
+Como posso te ajudar hoje? Me conta mais detalhes sobre o que precisa.
+ 
+Fico aguardando sua resposta para te dar o melhor suporte possível.
+ 
+Um abraço"""
         
         # Add priority note for P1 tickets
         if priority == "P1":
             response += f"""
-
-NOTA: Sua solicitação foi marcada como PRIORIDADE ALTA e está sendo tratada com urgência."""
+ 
+⚠️ Sua solicitação é prioridade alta, então vou te ajudar com urgência!"""
         
         return response
     
@@ -383,7 +412,7 @@ NOTA: Sua solicitação foi marcada como PRIORIDADE ALTA e está sendo tratada c
             resolution: Resolution data with response
             session: Optional MongoDB session
         """
-        interactions_collection = await get_collection(COLLECTION_INTERACTIONS)
+        interactions_collection = get_collection(COLLECTION_INTERACTIONS)
         
         interaction = InteractionCreate(
             ticket_id=ticket_id,
@@ -401,7 +430,7 @@ NOTA: Sua solicitação foi marcada como PRIORIDADE ALTA e está sendo tratada c
             await interactions_collection.insert_one(interaction_data)
         
         # Create audit log
-        audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+        audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         
         audit_log = AuditLogCreate(
             ticket_id=ticket_id,

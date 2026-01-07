@@ -20,6 +20,7 @@ class IngestMessageRequest(BaseModel):
     channel: IngestChannel = Field(..., description="Channel where the message originated")
     external_user_id: str = Field(..., description="External user ID from the channel (e.g., telegram:1234567)")
     text: str = Field(..., description="Message text content")
+    company_id: Optional[str] = Field(None, description="Company ID for multi-tenancy (e.g., 'company1', 'mycompany')")
     metadata: Optional[dict] = Field(default_factory=dict, description="Additional channel-specific metadata")
 
 

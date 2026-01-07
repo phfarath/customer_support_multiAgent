@@ -345,7 +345,7 @@ Should this ticket be escalated to a human agent?"""
             escalation: Escalation decision data
             session: Optional MongoDB session
         """
-        tickets_collection = await get_collection(COLLECTION_TICKETS)
+        tickets_collection = get_collection(COLLECTION_TICKETS)
         
         if escalation["escalate_to_human"]:
             # Update ticket to escalated status
@@ -374,7 +374,7 @@ Should this ticket be escalated to a human agent?"""
             )
         
         # Create audit log
-        audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+        audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         
         audit_log = AuditLogCreate(
             ticket_id=ticket_id,

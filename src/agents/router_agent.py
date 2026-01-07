@@ -265,7 +265,7 @@ Which team should handle this ticket?"""
             routing: Routing decision data
             session: Optional MongoDB session
         """
-        routing_collection = await get_collection(COLLECTION_ROUTING_DECISIONS)
+        routing_collection = get_collection(COLLECTION_ROUTING_DECISIONS)
         
         routing_decision = RoutingDecisionCreate(
             ticket_id=ticket_id,
@@ -283,7 +283,7 @@ Which team should handle this ticket?"""
             await routing_collection.insert_one(routing_data)
         
         # Create audit log
-        audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+        audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         
         audit_log = AuditLogCreate(
             ticket_id=ticket_id,
@@ -313,7 +313,7 @@ Which team should handle this ticket?"""
             ticket_id: ID of the ticket
             session: Optional MongoDB session
         """
-        tickets_collection = await get_collection(COLLECTION_TICKETS)
+        tickets_collection = get_collection(COLLECTION_TICKETS)
         
         update_data = {
             "current_phase": TicketPhase.RESOLUTION,

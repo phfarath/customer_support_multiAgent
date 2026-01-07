@@ -26,7 +26,7 @@ async def find_or_create_ticket(
     Returns:
         Tuple of (ticket_dict, is_new_ticket)
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     
     # Try to find an existing open ticket for this user and channel
     filter_query = {
@@ -89,7 +89,7 @@ async def add_interaction(
     Returns:
         Created interaction document
     """
-    collection = await get_collection(COLLECTION_INTERACTIONS)
+    collection = get_collection(COLLECTION_INTERACTIONS)
     
     interaction_dict = {
         "ticket_id": ticket_id,
@@ -117,7 +117,7 @@ async def update_ticket_interactions_count(
         ticket_id: ID of the ticket
         session: Optional MongoDB session for transactions
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     
     await collection.update_one(
         {"ticket_id": ticket_id},
@@ -142,7 +142,7 @@ async def update_ticket_status(
         status: New status
         session: Optional MongoDB session for transactions
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     
     await collection.update_one(
         {"ticket_id": ticket_id},

@@ -81,7 +81,7 @@ class BaseAgent(ABC):
         from src.database import get_collection, COLLECTION_AGENT_STATES
         from datetime import datetime
         
-        collection = await get_collection(COLLECTION_AGENT_STATES)
+        collection = get_collection(COLLECTION_AGENT_STATES)
         
         agent_state = {
             "ticket_id": ticket_id,

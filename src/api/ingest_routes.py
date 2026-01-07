@@ -47,18 +47,26 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
     Returns:
         Response with reply_text, escalation status, and ticket information
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Received ingest message request: {request}")
+    
     pipeline = AgentPipeline()
     
     try:
         # Convert IngestChannel to TicketChannel
+        logger.info(f"Converting channel: {request.channel} to TicketChannel")
         ticket_channel = TicketChannel(request.channel.value)
+        logger.info(f"TicketChannel: {ticket_channel}")
         
         # Find or create ticket
+        logger.info("Finding or creating ticket...")
         ticket, is_new_ticket = await find_or_create_ticket(
             external_user_id=request.external_user_id,
             channel=ticket_channel,
             text=request.text
         )
+        logger.info(f"Ticket found/created: ticket_id={ticket.get('ticket_id')}, is_new={is_new_ticket}")
         
         ticket_id = ticket["ticket_id"]
         
@@ -74,7 +82,7 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         await update_ticket_interactions_count(ticket_id)
         
         # Create audit log for message ingestion
-        audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+        audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         await audit_collection.insert_one({
             "ticket_id": ticket_id,
             "agent_name": "system",
@@ -90,7 +98,9 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         })
         
         # Run agent pipeline
+        logger.info(f"Running agent pipeline for ticket_id: {ticket_id}")
         results = await pipeline.run_pipeline(ticket_id)
+        logger.info(f"Pipeline results: {results}")
         
         # Extract the resolver's response
         resolver_response = results.get("resolution", {}).get("decisions", {})

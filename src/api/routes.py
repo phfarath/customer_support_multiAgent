@@ -38,7 +38,7 @@ async def create_ticket(ticket_data: TicketCreate) -> Dict[str, Any]:
     Returns:
         Created ticket data
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     
     # Check if ticket_id already exists
     existing = await collection.find_one({"ticket_id": ticket_data.ticket_id})
@@ -59,7 +59,7 @@ async def create_ticket(ticket_data: TicketCreate) -> Dict[str, Any]:
     ticket_dict["_id"] = str(result.inserted_id)
     
     # Create audit log
-    audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+    audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
     await audit_collection.insert_one({
         "ticket_id": ticket_data.ticket_id,
         "agent_name": "system",
@@ -120,7 +120,7 @@ async def get_ticket(ticket_id: str) -> Dict[str, Any]:
     Returns:
         Ticket data
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     ticket = await collection.find_one({"ticket_id": ticket_id})
     
     if not ticket:
@@ -148,7 +148,7 @@ async def get_ticket_audit(ticket_id: str) -> Dict[str, Any]:
     Returns:
         Audit log entries
     """
-    audit_collection = await get_collection(COLLECTION_AUDIT_LOGS)
+    audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
     
     cursor = audit_collection.find({"ticket_id": ticket_id}).sort("timestamp", 1)
     
@@ -176,7 +176,7 @@ async def get_ticket_interactions(ticket_id: str) -> Dict[str, Any]:
     Returns:
         List of interactions
     """
-    interactions_collection = await get_collection(COLLECTION_INTERACTIONS)
+    interactions_collection = get_collection(COLLECTION_INTERACTIONS)
     
     cursor = interactions_collection.find({"ticket_id": ticket_id}).sort("created_at", 1)
     
@@ -204,7 +204,7 @@ async def get_ticket_agent_states(ticket_id: str) -> Dict[str, Any]:
     Returns:
         List of agent states
     """
-    agent_states_collection = await get_collection(COLLECTION_AGENT_STATES)
+    agent_states_collection = get_collection(COLLECTION_AGENT_STATES)
     
     cursor = agent_states_collection.find({"ticket_id": ticket_id})
     
@@ -238,7 +238,7 @@ async def list_tickets(
     Returns:
         List of tickets
     """
-    collection = await get_collection(COLLECTION_TICKETS)
+    collection = get_collection(COLLECTION_TICKETS)
     
     # Build filter
     filter_dict = {}
