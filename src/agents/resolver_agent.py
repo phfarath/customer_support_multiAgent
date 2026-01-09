@@ -72,7 +72,8 @@ class ResolverAgent(BaseAgent):
             ticket,
             triage_result,
             routing_result,
-            interactions
+            interactions,
+            company_config
         )
         
         # Save response interaction
@@ -103,7 +104,8 @@ class ResolverAgent(BaseAgent):
         ticket: Dict[str, Any],
         triage_result: Dict[str, Any],
         routing_result: Dict[str, Any],
-        interactions: list
+        interactions: list,
+        company_config: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Generate a response and determine if escalation is needed
@@ -128,7 +130,10 @@ class ResolverAgent(BaseAgent):
             target_team,
             category,
             priority,
-            sentiment
+            sentiment,
+            company_config,
+            is_first_response=len(interactions) <= 1,
+            interactions=interactions
         )
         
         # Determine if escalation is needed
@@ -153,7 +158,10 @@ class ResolverAgent(BaseAgent):
         target_team: str,
         category: str,
         priority: str,
-        sentiment: float
+        sentiment: float,
+        company_config: Optional[Any] = None,
+        is_first_response: bool = True,
+        interactions: list = []
     ) -> str:
         """
         Generate a draft response based on ticket context using OpenAI
@@ -209,18 +217,22 @@ class ResolverAgent(BaseAgent):
             === FIM DO CONTEXTO ===
             """
         
+        # Dynamic instructions based on conversation state
+        greeting_instruction = "- Start with a friendly greeting (Olá, Oi) ONLY if this is the start of the conversation." if is_first_response else "- DO NOT use a greeting (Olá, Oi) as we are already talking. Go straight to the point."
+        closing_instruction = "- Only use a closing (Até logo, Um abraço) if you are resolving the issue or ending the chat. If asking a question, DO NOT sign off."
+        
         # System prompt for response generation
         system_prompt = f"""You are a friendly customer support bot for the {target_team} team. Your goal is to help customers in a natural, conversational way.
 
 Important guidelines:
 - Be {tone} and conversational - write like a real person would speak
-- Start with a friendly greeting (Olá, Oi, Bom dia, etc.)
+{greeting_instruction}
 - Address the customer's specific issue directly
 - Provide helpful next steps or information clearly
 - Keep responses concise but comprehensive
 - Use natural, everyday Portuguese - avoid overly formal language
 - Don't use phrases like "Prezado(a) cliente" - be more personal
-- Sign off naturally (Até logo, Um abraço, etc.)
+{closing_instruction}
 - Present yourself as a helpful support assistant, not a robot
 
 {company_context}
@@ -229,14 +241,38 @@ Important guidelines:
 
 Remember: You're having a conversation with a real person. Be warm, understanding, and helpful."""
 
-        user_message = f"""Customer Inquiry:
+        # Build conversation history
+        history_text = ""
+        last_user_message = description # Default to description if no history
+        
+        if interactions:
+            history_lines = []
+            for interaction in interactions:
+                # Handle interaction object being either dict or object
+                i_type = interaction.get("type", "") if isinstance(interaction, dict) else getattr(interaction, "type", "")
+                i_content = interaction.get("content", "") if isinstance(interaction, dict) else getattr(interaction, "content", "")
+                
+                if i_type == "customer_message":
+                    history_lines.append(f"Customer: {i_content}")
+                    last_user_message = i_content
+                elif i_type == "agent_response":
+                    history_lines.append(f"You: {i_content}")
+            
+            # Keep last 10 interactions to avoid token limits
+            history_text = "\n".join(history_lines[-10:])
+
+        user_message = f"""Context:
 Subject: {subject}
-Description: {description}
-Channel: {channel}
 Category: {category}
 Priority: {priority}
 Sentiment: {sentiment:.2f}
 
+Conversation History:
+{history_text}
+
+Latest Customer Message:
+{last_user_message}
+ 
 Generate a helpful response to this customer."""
 
         try:

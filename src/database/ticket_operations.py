@@ -12,6 +12,7 @@ async def find_or_create_ticket(
     external_user_id: str,
     channel: TicketChannel,
     text: str,
+    company_id: Optional[str] = None,
     session: Optional[AsyncIOMotorClientSession] = None
 ) -> tuple[Dict[str, Any], bool]:
     """
@@ -21,6 +22,7 @@ async def find_or_create_ticket(
         external_user_id: External user ID from the channel
         channel: Channel where the message originated
         text: Message text (used for subject/description if creating new ticket)
+        company_id: Optional Company ID to associate with the ticket
         session: Optional MongoDB session for transactions
         
     Returns:
@@ -38,6 +40,15 @@ async def find_or_create_ticket(
     ticket = await collection.find_one(filter_query, session=session)
     
     if ticket:
+        # Update company_id if provided and not present
+        if company_id and not ticket.get("company_id"):
+            await collection.update_one(
+                {"ticket_id": ticket["ticket_id"]},
+                {"$set": {"company_id": company_id}},
+                session=session
+            )
+            ticket["company_id"] = company_id
+            
         # Return existing ticket
         return ticket, False
     
@@ -50,6 +61,7 @@ async def find_or_create_ticket(
     ticket_dict = {
         "ticket_id": ticket_id,
         "customer_id": external_user_id,  # Use external_user_id as customer_id for now
+        "company_id": company_id,
         "channel": channel,
         "external_user_id": external_user_id,
         "subject": subject,

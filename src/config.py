@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     
     # Telegram Configuration
     telegram_bot_token: Optional[str] = None
+    telegram_polling_timeout: int = 30
+    
+    # Bot Business Logic
+    bot_require_phone: bool = True
+    bot_rate_limit_messages: int = 10      # Max messages
+    bot_rate_limit_window: int = 60        # Per minute (seconds)
+    bot_rate_limit_block_time: int = 300   # Block for 5 min (seconds)
+    bot_default_company_id: Optional[str] = None  # Default company if not identified
     
     # Agent Configuration
     escalation_max_interactions: int = 2

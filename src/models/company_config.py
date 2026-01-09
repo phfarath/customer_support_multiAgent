@@ -41,6 +41,10 @@ class CompanyConfig(BaseModel):
         None, 
         description="Welcome message when starting new conversation"
     )
+    bot_outside_hours_message: Optional[str] = Field(
+        None,
+        description="Message shown outside business hours"
+    )
     
     class Config:
         populate_by_name = True
@@ -62,6 +66,7 @@ class CompanyConfigCreate(BaseModel):
     custom_instructions: Optional[str] = None
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
+    bot_outside_hours_message: Optional[str] = None
 
 
 class CompanyConfigUpdate(BaseModel):
@@ -79,3 +84,4 @@ class CompanyConfigUpdate(BaseModel):
     custom_instructions: Optional[str] = None
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
+    bot_outside_hours_message: Optional[str] = None

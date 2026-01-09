@@ -64,7 +64,8 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         ticket, is_new_ticket = await find_or_create_ticket(
             external_user_id=request.external_user_id,
             channel=ticket_channel,
-            text=request.text
+            text=request.text,
+            company_id=request.company_id
         )
         logger.info(f"Ticket found/created: ticket_id={ticket.get('ticket_id')}, is_new={is_new_ticket}")
         

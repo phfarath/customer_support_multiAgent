@@ -43,6 +43,7 @@ class TicketBase(BaseModel):
     """Base ticket model"""
     ticket_id: str
     customer_id: str
+    company_id: Optional[str] = None
     channel: TicketChannel
     external_user_id: Optional[str] = None
     subject: str

@@ -64,6 +64,8 @@ COLLECTION_INTERACTIONS = "interactions"
 COLLECTION_ROUTING_DECISIONS = "routing_decisions"
 COLLECTION_AUDIT_LOGS = "audit_logs"
 COLLECTION_COMPANY_CONFIGS = "company_configs"
+COLLECTION_CUSTOMERS = "customers"
+COLLECTION_BOT_SESSIONS = "bot_sessions"
 
 
 async def ensure_indexes():
@@ -91,3 +93,18 @@ async def ensure_indexes():
     
     # Routing decisions indexes
     await db[COLLECTION_ROUTING_DECISIONS].create_index([("ticket_id", 1)])
+    
+    # Customers indexes
+    await db[COLLECTION_CUSTOMERS].create_index([("customer_id", 1)], unique=True)
+    await db[COLLECTION_CUSTOMERS].create_index([("phone_number", 1)], unique=True, sparse=True)
+    await db[COLLECTION_CUSTOMERS].create_index([("telegram_chat_id", 1)], sparse=True)
+    await db[COLLECTION_CUSTOMERS].create_index([("company_id", 1)])
+    
+    # Bot sessions indexes
+    await db[COLLECTION_BOT_SESSIONS].create_index([("chat_id", 1)], unique=True)
+    await db[COLLECTION_BOT_SESSIONS].create_index([("phone_number", 1)], sparse=True)
+    await db[COLLECTION_BOT_SESSIONS].create_index([("customer_id", 1)], sparse=True)
+    await db[COLLECTION_BOT_SESSIONS].create_index([("state", 1)])
+    
+    # Company configs indexes
+    await db[COLLECTION_COMPANY_CONFIGS].create_index([("company_id", 1)], unique=True)
