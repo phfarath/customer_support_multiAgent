@@ -1,7 +1,4 @@
-"""
-Resolver Agent - Generates responses and attempts to resolve tickets
-"""
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from motor.motor_asyncio import AsyncIOMotorClientSession
 from .base_agent import BaseAgent, AgentResult
 from src.models import (
@@ -20,6 +17,8 @@ from src.database import (
 )
 from src.config import settings
 from datetime import datetime
+from src.models.company_config import CompanyConfig, Team
+from src.rag.knowledge_base import knowledge_base
 
 
 class ResolverAgent(BaseAgent):
@@ -57,7 +56,15 @@ class ResolverAgent(BaseAgent):
         triage_result = context.get("triage_result", {})
         routing_result = context.get("routing_result", {})
         interactions = context.get("interactions", [])
-        company_config = context.get("company_config")
+        
+        # Ensure company_config is a proper object if passed as dict
+        company_config_data = context.get("company_config")
+        company_config = None
+        if company_config_data:
+            if isinstance(company_config_data, dict):
+                company_config = CompanyConfig(**company_config_data)
+            else:
+                company_config = company_config_data
         
         if not ticket:
             return AgentResult(
@@ -67,13 +74,39 @@ class ResolverAgent(BaseAgent):
                 message="No ticket data provided"
             )
         
+        # RAG Integration: Check Knowledge Base
+        kb_context = ""
+        if company_config and company_config.knowledge_base and company_config.knowledge_base.enabled:
+            # Determine search query (use last user message or ticket description)
+            query = ticket.get("description", "")
+            if interactions:
+                # Find last customer message
+                for i in reversed(interactions):
+                    i_type = i.get("type", "") if isinstance(i, dict) else getattr(i, "type", "")
+                    if i_type == "customer_message":
+                        query = i.get("content", "") if isinstance(i, dict) else getattr(i, "content", "")
+                        break
+            
+            try:
+                kb_results = await knowledge_base.search(
+                    query=query,
+                    company_id=company_config.company_id,
+                    collection_name=company_config.knowledge_base.vector_db_collection or "company_knowledge"
+                )
+                
+                if kb_results:
+                    kb_context = "\n".join([f"- {res}" for res in kb_results])
+            except Exception as e:
+                print(f"RAG Search failed: {e}")
+
         # Generate response and determine resolution
         resolution = await self._generate_resolution(
             ticket,
             triage_result,
             routing_result,
             interactions,
-            company_config
+            company_config,
+            kb_context
         )
         
         # Save response interaction
@@ -105,19 +138,11 @@ class ResolverAgent(BaseAgent):
         triage_result: Dict[str, Any],
         routing_result: Dict[str, Any],
         interactions: list,
-        company_config: Optional[Any] = None
+        company_config: Optional[CompanyConfig] = None,
+        kb_context: str = ""
     ) -> Dict[str, Any]:
         """
         Generate a response and determine if escalation is needed
-        
-        Args:
-            ticket: Ticket data
-            triage_result: Results from triage agent
-            routing_result: Results from router agent
-            interactions: List of previous interactions
-            
-        Returns:
-            Dict with response, confidence, and escalation decision
         """
         target_team = routing_result.get("target_team", "general")
         priority = ticket.get("priority", "P3")
@@ -133,7 +158,8 @@ class ResolverAgent(BaseAgent):
             sentiment,
             company_config,
             is_first_response=len(interactions) <= 1,
-            interactions=interactions
+            interactions=interactions,
+            kb_context=kb_context
         )
         
         # Determine if escalation is needed
@@ -155,95 +181,129 @@ class ResolverAgent(BaseAgent):
     async def _generate_response_text(
         self,
         ticket: Dict[str, Any],
-        target_team: str,
+        target_team_id: str,
         category: str,
         priority: str,
         sentiment: float,
-        company_config: Optional[Any] = None,
+        company_config: Optional[CompanyConfig] = None,
         is_first_response: bool = True,
-        interactions: list = []
+        interactions: list = [],
+        kb_context: str = ""
     ) -> str:
         """
         Generate a draft response based on ticket context using OpenAI
-        
-        Args:
-            ticket: Ticket data
-            target_team: Team assigned to handle
-            category: Ticket category
-            priority: Ticket priority
-            sentiment: Customer sentiment score
-            
-        Returns:
-            Draft response text
         """
         from src.utils.openai_client import get_openai_client
         
         subject = ticket.get("subject", "")
         description = ticket.get("description", "")
-        channel = ticket.get("channel", "")
         
-        # Determine tone based on sentiment
-        if sentiment < -0.5:
+        # Identify the team config
+        current_team: Optional[Team] = None
+        if company_config and company_config.teams:
+            for team in company_config.teams:
+                if team.team_id == target_team_id:
+                    current_team = team
+                    break
+
+        # Determine tone based on sentiment/team
+        if current_team and current_team.is_sales:
+             tone = "enthusiastic, persuasive, and helpful"
+        elif sentiment < -0.5:
             tone = "empathetic and apologetic"
         elif sentiment > 0.3:
             tone = "friendly and positive"
         else:
             tone = "professional and neutral"
         
-        # Determine urgency based on priority
+        # Determine urgency
         urgency_note = ""
         if priority == "P1":
             urgency_note = "IMPORTANT: This is a high-priority ticket and should be addressed urgently."
         
-        # Build company context for the prompt
+        # Build company context
         company_context = ""
+        sales_context = ""
+        
         if company_config:
             company_name = company_config.company_name or "nossa empresa"
-            company_context = f"""
             
-            === CONTEXTO DA EMPRESA ===
+            # Basic info
+            company_info = f"""
             Empresa: {company_name}
-            
-            Políticas:
-            - Política de Reembolso: {company_config.refund_policy or 'Não especificada'}
-            - Política de Cancelamento: {company_config.cancellation_policy or 'Não especificada'}
-            
-            Métodos de Pagamento: {', '.join(company_config.payment_methods) if company_config.payment_methods else 'Não especificados'}
-            
-            Produtos/Serviços: {', '.join([p.get('name', 'Produto não especificado') for p in (company_config.products or [])])}
-            
-            Horário de Atendimento: {company_config.business_hours or 'Não especificado'}
-            
-            === FIM DO CONTEXTO ===
+            Horário: {company_config.business_hours or 'Não especificado'}
             """
+
+            # Specific context based on team type
+            if current_team and current_team.is_sales:
+                products_str = ""
+                if company_config.products:
+                    for p in company_config.products:
+                         products_str += f"- {p.get('name')} (ID: {p.get('id')}): {p.get('price', 'Preço sob consulta')} - {p.get('details', '')}\n"
+                
+                sales_context = f"""
+                === CONTEXTO DE VENDAS ===
+                Você está agindo como um Vendedor Especialista.
+                Objetivo: Tirar dúvidas, apresentar produtos e convencer o cliente a fechar negócio.
+                
+                Instruções do Time ({current_team.name}):
+                {current_team.instructions or "Foque em apresentar os benefícios e fechar a venda."}
+                
+                Catálogo de Produtos/Serviços:
+                {products_str}
+                
+                Se o cliente perguntar preço, consulte a lista acima.
+                Se o produto não estiver na lista, peça para entrar em contato com um humano.
+                === FIM CONTEXTO DE VENDAS ===
+                """
+            
+            # General Support Policy Context
+            policy_context = f"""
+            === POLÍTICAS ===
+            Reembolso: {company_config.refund_policy or 'Não especificada'}
+            Cancelamento: {company_config.cancellation_policy or 'Não especificada'}
+            Pagamento: {', '.join(company_config.payment_methods) if company_config.payment_methods else 'Não especificados'}
+            === FIM POLÍTICAS ===
+            """
+            
+            company_context = company_info + "\n" + sales_context + "\n" + policy_context
         
+        # RAG Context
+        rag_section = ""
+        if kb_context:
+            rag_section = f"""
+            === RELEVANT KNOWLEDGE BASE ===
+            Use this information to answer if applicable:
+            {kb_context}
+            === END KNOWLEDGE BASE ===
+            """
+
         # Dynamic instructions based on conversation state
-        greeting_instruction = "- Start with a friendly greeting (Olá, Oi) ONLY if this is the start of the conversation." if is_first_response else "- DO NOT use a greeting (Olá, Oi) as we are already talking. Go straight to the point."
-        closing_instruction = "- Only use a closing (Até logo, Um abraço) if you are resolving the issue or ending the chat. If asking a question, DO NOT sign off."
+        greeting_instruction = "- Start with a friendly greeting ONLY if this is the start of the conversation." if is_first_response else "- DO NOT use a greeting as we are already talking."
+        closing_instruction = "- Only use a closing if you are resolving the issue or ending the chat."
         
-        # System prompt for response generation
-        system_prompt = f"""You are a friendly customer support bot for the {target_team} team. Your goal is to help customers in a natural, conversational way.
+        # System prompt
+        system_prompt = f"""You are a customer support agent for the {current_team.name if current_team else target_team_id} team.
+        
+{company_context}
+
+{rag_section}
 
 Important guidelines:
-- Be {tone} and conversational - write like a real person would speak
+- Be {tone} and conversational.
 {greeting_instruction}
-- Address the customer's specific issue directly
-- Provide helpful next steps or information clearly
-- Keep responses concise but comprehensive
-- Use natural, everyday Portuguese - avoid overly formal language
-- Don't use phrases like "Prezado(a) cliente" - be more personal
+- Address the customer's specific issue directly.
+- Use natural, everyday Portuguese.
 {closing_instruction}
-- Present yourself as a helpful support assistant, not a robot
-
-{company_context}
+- IF you used information from the Knowledge Base, explain it clearly to the user.
 
 {urgency_note}
 
-Remember: You're having a conversation with a real person. Be warm, understanding, and helpful."""
+Remember: You're having a conversation with a real person. Be warm and helpful."""
 
         # Build conversation history
         history_text = ""
-        last_user_message = description # Default to description if no history
+        last_user_message = description 
         
         if interactions:
             history_lines = []
@@ -258,7 +318,6 @@ Remember: You're having a conversation with a real person. Be warm, understandin
                 elif i_type == "agent_response":
                     history_lines.append(f"You: {i_content}")
             
-            # Keep last 10 interactions to avoid token limits
             history_text = "\n".join(history_lines[-10:])
 
         user_message = f"""Context:
@@ -273,7 +332,7 @@ Conversation History:
 Latest Customer Message:
 {last_user_message}
  
-Generate a helpful response to this customer."""
+Generate a response."""
 
         try:
             client = get_openai_client()
@@ -281,13 +340,12 @@ Generate a helpful response to this customer."""
                 system_prompt=system_prompt,
                 user_message=user_message,
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=600
             )
             return response.strip()
         except Exception as e:
-            # Fallback to template-based response if OpenAI fails
-            print(f"OpenAI response generation failed, falling back to template: {str(e)}")
-            return self._generate_response_text_fallback(ticket, target_team, category, priority, sentiment)
+            print(f"OpenAI response generation failed: {str(e)}")
+            return self._generate_response_text_fallback(ticket, target_team_id, category, priority, sentiment)
     
     def _generate_response_text_fallback(
         self,
@@ -299,85 +357,20 @@ Generate a helpful response to this customer."""
     ) -> str:
         """
         Fallback template-based response when OpenAI is unavailable
-        
-        Args:
-            ticket: Ticket data
-            target_team: Team assigned to handle
-            category: Ticket category
-            priority: Ticket priority
-            sentiment: Customer sentiment score
-            
-        Returns:
-            Draft response text
         """
         subject = ticket.get("subject", "")
-        description = ticket.get("description", "")
         
-        # Adjust tone based on sentiment
-        if sentiment < -0.5:
-            greeting = "Oi,"
-            apology = "Sinto muito que você teve uma experiência ruim."
-        elif sentiment > 0.3:
-            greeting = "Olá,"
-            apology = ""
-        else:
-            greeting = "Oi,"
-            apology = ""
+        greeting = "Olá,"
         
-        # Generate response based on category
         if category == "billing":
-            response = f"""{greeting}
- 
-Entendi que você precisa de ajuda com faturamento. {apology}
- 
-Sobre: {subject}
- 
-Para te ajudar melhor, me conta um pouco mais sobre o que aconteceu? Preciso de:
-- Número do pedido ou transação
-- Quando foi a cobrança
-- Se tem algum comprovante
- 
-Assim que eu consiga te ajudar da melhor forma!
- 
-Um abraço"""
-        
+            response = f"{greeting}\n\nEntendi que você precisa de ajuda com faturamento sobre '{subject}'. Por favor, aguarde enquanto verifico."
         elif category == "tech":
-            response = f"""{greeting}
- 
-Vi que você está com um problema técnico. {apology}
- 
-Sobre: {subject}
- 
-Vamos resolver isso juntos! Para eu entender melhor:
-- Qual dispositivo ou sistema você está usando?
-- Quando o problema começou?
-- Já tentou alguma solução?
- 
-Me avisa se precisar de mais alguma coisa, tá?
- 
-Um abraço"""
-        
-        else:  # general
-            response = f"""{greeting}
- 
-Obrigado por entrar em contato! {apology}
- 
-Sobre: {subject}
- 
-Como posso te ajudar hoje? Me conta mais detalhes sobre o que precisa.
- 
-Fico aguardando sua resposta para te dar o melhor suporte possível.
- 
-Um abraço"""
-        
-        # Add priority note for P1 tickets
-        if priority == "P1":
-            response += f"""
- 
-⚠️ Sua solicitação é prioridade alta, então vou te ajudar com urgência!"""
-        
+             response = f"{greeting}\n\nVi que você está com um problema técnico sobre '{subject}'. Poderia me dar mais detalhes?"
+        else:
+             response = f"{greeting}\n\nComo posso te ajudar hoje com '{subject}'?"
+             
         return response
-    
+
     def _check_escalation_needed(
         self,
         ticket: Dict[str, Any],
@@ -386,14 +379,6 @@ Um abraço"""
     ) -> tuple:
         """
         Check if the ticket needs to be escalated based on rules
-        
-        Args:
-            ticket: Ticket data
-            triage_result: Results from triage agent
-            interactions: List of previous interactions
-            
-        Returns:
-            Tuple of (needs_escalation, reasons, confidence)
         """
         needs_escalation = False
         reasons = []
@@ -415,15 +400,22 @@ Um abraço"""
             reasons.append(f"Negative sentiment: {sentiment:.2f}")
             confidence = min(confidence - 0.15, 0.5)
         
-        # Rule 3: Check SLA breach (time since creation)
+        # Rule 3: Check SLA breach
         created_at = ticket.get("created_at")
         if created_at:
-            time_diff = datetime.utcnow() - created_at
-            hours_diff = time_diff.total_seconds() / 3600
-            if hours_diff > settings.escalation_sla_hours:
-                needs_escalation = True
-                reasons.append(f"SLA breach: {hours_diff:.1f} hours")
-                confidence = min(confidence - 0.1, 0.6)
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at)
+                except:
+                    pass # Ignore parsing error
+                    
+            if isinstance(created_at, datetime):
+                time_diff = datetime.utcnow() - created_at
+                hours_diff = time_diff.total_seconds() / 3600
+                if hours_diff > settings.escalation_sla_hours:
+                    needs_escalation = True
+                    reasons.append(f"SLA breach: {hours_diff:.1f} hours")
+                    confidence = min(confidence - 0.1, 0.6)
         
         # Rule 4: Low confidence from triage
         triage_confidence = triage_result.get("confidence", 0.8)
@@ -442,11 +434,6 @@ Um abraço"""
     ):
         """
         Save the response as an interaction
-        
-        Args:
-            ticket_id: ID of the ticket
-            resolution: Resolution data with response
-            session: Optional MongoDB session
         """
         interactions_collection = get_collection(COLLECTION_INTERACTIONS)
         

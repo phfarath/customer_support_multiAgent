@@ -5,6 +5,29 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 
 
+class Team(BaseModel):
+    """Team definition for routing and responsibilities"""
+    team_id: str = Field(..., description="Unique team identifier (e.g. 'sales', 'tech')")
+    name: str = Field(..., description="Display name")
+    description: str = Field(..., description="Description for Router Agent")
+    responsibilities: List[str] = Field(default_factory=list, description="List of key responsibilities")
+    instructions: Optional[str] = Field(None, description="Specific instructions for agents acting in this team")
+    is_sales: bool = Field(False, description="Flag for specific sales logic")
+
+
+class KnowledgeBaseConfig(BaseModel):
+    """Configuration for RAG/Knowledge Base"""
+    enabled: bool = Field(False, description="Whether KB lookup is enabled")
+    sources: List[str] = Field(default_factory=list, description="List of sources (manuals, policies)")
+    vector_db_collection: str = Field("company_knowledge", description="Collection name in Vector DB")
+
+
+class IntegrationConfig(BaseModel):
+    """Configuration for external integrations"""
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram Bot Token")
+    whatsapp_api_key: Optional[str] = Field(None, description="WhatsApp API Key")
+    
+
 class CompanyConfig(BaseModel):
     """Company configuration for multi-tenancy support"""
     
@@ -29,10 +52,17 @@ class CompanyConfig(BaseModel):
     # Business Hours
     business_hours: Optional[Dict[str, str]] = Field(None, description="Business hours")
     
-    # Custom Instructions
+    # Teams & Routing
+    teams: List[Team] = Field(default_factory=list, description="Teams structure")
+    
+    # Integrations
+    knowledge_base: Optional[KnowledgeBaseConfig] = Field(default_factory=KnowledgeBaseConfig, description="Knowledge Base Config")
+    integrations: Optional[IntegrationConfig] = Field(default_factory=IntegrationConfig, description="Integration credentials")
+    
+    # Custom Instructions (Global)
     custom_instructions: Optional[str] = Field(
         None, 
-        description="Custom instructions for agents"
+        description="Global custom instructions for agents"
     )
     
     # Bot Configuration
@@ -45,6 +75,9 @@ class CompanyConfig(BaseModel):
         None,
         description="Message shown outside business hours"
     )
+    
+    # Escalation
+    escalation_contact: Optional[str] = Field(None, description="Telegram Group/Chat ID for human escalation")
     
     class Config:
         populate_by_name = True
@@ -67,6 +100,12 @@ class CompanyConfigCreate(BaseModel):
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
+    
+    # New fields
+    teams: Optional[List[Team]] = None
+    knowledge_base: Optional[KnowledgeBaseConfig] = None
+    integrations: Optional[IntegrationConfig] = None
+    escalation_contact: Optional[str] = None
 
 
 class CompanyConfigUpdate(BaseModel):
@@ -85,3 +124,9 @@ class CompanyConfigUpdate(BaseModel):
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
+    
+    # New fields
+    teams: Optional[List[Team]] = None
+    knowledge_base: Optional[KnowledgeBaseConfig] = None
+    integrations: Optional[IntegrationConfig] = None
+    escalation_contact: Optional[str] = None
