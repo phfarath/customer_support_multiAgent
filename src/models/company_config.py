@@ -75,9 +75,14 @@ class CompanyConfig(BaseModel):
         None,
         description="Message shown outside business hours"
     )
+    bot_handoff_message: Optional[str] = Field(
+        None,
+        description="Message shown when a ticket is escalated to a human"
+    )
     
     # Escalation
     escalation_contact: Optional[str] = Field(None, description="Telegram Group/Chat ID for human escalation")
+    escalation_email: Optional[str] = Field(None, description="Email for human escalation notifications")
     
     class Config:
         populate_by_name = True
@@ -100,12 +105,14 @@ class CompanyConfigCreate(BaseModel):
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
+    bot_handoff_message: Optional[str] = None
     
     # New fields
     teams: Optional[List[Team]] = None
     knowledge_base: Optional[KnowledgeBaseConfig] = None
     integrations: Optional[IntegrationConfig] = None
     escalation_contact: Optional[str] = None
+    escalation_email: Optional[str] = None
 
 
 class CompanyConfigUpdate(BaseModel):
@@ -124,9 +131,11 @@ class CompanyConfigUpdate(BaseModel):
     bot_name: Optional[str] = None
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
+    bot_handoff_message: Optional[str] = None
     
     # New fields
     teams: Optional[List[Team]] = None
     knowledge_base: Optional[KnowledgeBaseConfig] = None
     integrations: Optional[IntegrationConfig] = None
     escalation_contact: Optional[str] = None
+    escalation_email: Optional[str] = None

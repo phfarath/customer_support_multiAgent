@@ -15,6 +15,8 @@ from src.database import (
     get_collection,
     COLLECTION_TICKETS,
     COLLECTION_AUDIT_LOGS,
+    COLLECTION_INTERACTIONS,
+    COLLECTION_COMPANY_CONFIGS,
 )
 from src.database.ticket_operations import (
     find_or_create_ticket,
@@ -23,10 +25,32 @@ from src.database.ticket_operations import (
     update_ticket_status,
 )
 from src.utils import AgentPipeline
+from src.utils.email_notifier import send_escalation_email
 from src.models.interaction import InteractionType
+from src.models import CompanyConfig
 
 
 router = APIRouter(prefix="/api", tags=["ingest"])
+
+
+async def _get_company_config(company_id: str) -> CompanyConfig | None:
+    if not company_id:
+        return None
+    collection = get_collection(COLLECTION_COMPANY_CONFIGS)
+    config = await collection.find_one({"company_id": company_id})
+    if not config:
+        return None
+    config["_id"] = str(config.get("_id"))
+    return CompanyConfig(**config)
+
+
+async def _get_last_interactions(ticket_id: str, limit: int = 3) -> list[Dict[str, Any]]:
+    collection = get_collection(COLLECTION_INTERACTIONS)
+    cursor = collection.find({"ticket_id": ticket_id}).sort("created_at", -1).limit(limit)
+    interactions = []
+    async for interaction in cursor:
+        interactions.append(interaction)
+    return list(reversed(interactions))
 
 
 @router.post("/ingest-message", response_model=IngestMessageResponse)
@@ -70,6 +94,7 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         logger.info(f"Ticket found/created: ticket_id={ticket.get('ticket_id')}, is_new={is_new_ticket}")
         
         ticket_id = ticket["ticket_id"]
+        was_escalated = ticket.get("status") == TicketStatus.ESCALATED
         
         # Add customer interaction
         await add_interaction(
@@ -81,7 +106,7 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         
         # Update ticket interactions count
         await update_ticket_interactions_count(ticket_id)
-        
+
         # Create audit log for message ingestion
         audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         await audit_collection.insert_one({
@@ -97,6 +122,16 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
             },
             "timestamp": datetime.utcnow()
         })
+
+        if was_escalated:
+            return IngestMessageResponse(
+                success=True,
+                ticket_id=ticket_id,
+                reply_text=None,
+                escalated=True,
+                message="Ticket already escalated to human agent",
+                ticket_status=ticket.get("status")
+            )
         
         # Run agent pipeline
         logger.info(f"Running agent pipeline for ticket_id: {ticket_id}")
@@ -109,6 +144,7 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         
         # Check if escalated
         escalated = results.get("escalation", {}).get("escalate_to_human", False)
+        escalation_reasons = results.get("escalation", {}).get("decisions", {}).get("reasons", [])
         
         # Update ticket status based on escalation
         if escalated:
@@ -116,16 +152,49 @@ async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse
         else:
             await update_ticket_status(ticket_id, TicketStatus.IN_PROGRESS)
         
-        # Add agent response as interaction
-        await add_interaction(
-            ticket_id=ticket_id,
-            interaction_type=InteractionType.AGENT_RESPONSE,
-            content=reply_text,
-            channel=request.channel.value
-        )
-        
-        # Update ticket interactions count again
-        await update_ticket_interactions_count(ticket_id)
+        company_config = None
+        if escalated and not was_escalated:
+            company_config = await _get_company_config(ticket.get("company_id"))
+            from src.config import settings
+            handoff_message = settings.escalation_handoff_message
+            if company_config and company_config.bot_handoff_message:
+                handoff_message = company_config.bot_handoff_message
+            try:
+                reply_text = handoff_message.format(ticket_id=ticket_id)
+            except Exception:
+                reply_text = handoff_message
+        elif escalated:
+            reply_text = None
+
+        if reply_text:
+            # Add agent response as interaction
+            await add_interaction(
+                ticket_id=ticket_id,
+                interaction_type=InteractionType.AGENT_RESPONSE,
+                content=reply_text,
+                channel=request.channel.value
+            )
+            
+            # Update ticket interactions count again
+            await update_ticket_interactions_count(ticket_id)
+
+        if escalated and not was_escalated:
+            escalation_email = None
+            company_name = None
+            if company_config:
+                escalation_email = company_config.escalation_email
+                company_name = company_config.company_name
+            if not escalation_email:
+                from src.config import settings
+                escalation_email = settings.escalation_default_email
+            recent_interactions = await _get_last_interactions(ticket_id, limit=3)
+            await send_escalation_email(
+                ticket=ticket,
+                interactions=recent_interactions,
+                escalation_reasons=escalation_reasons,
+                company_name=company_name,
+                to_email=escalation_email
+            )
         
         return IngestMessageResponse(
             success=True,

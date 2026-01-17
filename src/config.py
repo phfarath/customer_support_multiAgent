@@ -24,6 +24,19 @@ class Settings(BaseSettings):
     # Telegram Configuration
     telegram_bot_token: Optional[str] = None
     telegram_polling_timeout: int = 30
+
+    # SMTP Configuration (for escalation emails)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
+    smtp_use_tls: bool = True
+    escalation_default_email: Optional[str] = None
+    escalation_handoff_message: str = (
+        "Sua solicitacao foi encaminhada para um atendente humano. "
+        "Ticket: {ticket_id}. Em breve responderemos por aqui."
+    )
     
     # Bot Business Logic
     bot_require_phone: bool = True
