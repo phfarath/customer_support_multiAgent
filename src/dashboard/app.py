@@ -28,7 +28,7 @@ def main():
     # Sidebar Navigation
     with st.sidebar:
         st.header("Navegação")
-        page = st.radio("Ir para:", ["Home/Login", "Configurações do Bot", "Produtos", "Logs"])
+        page = st.radio("Ir para:", ["Home/Login", "Escalados", "Configurações do Bot", "Produtos", "Logs"])
         
         st.markdown("---")
         if st.session_state.selected_company_id:
@@ -43,6 +43,9 @@ def main():
     # Routing
     if page == "Home/Login":
         render_home()
+    elif page == "Escalados":
+        from src.dashboard.components.escalated_inbox import render_escalated_inbox
+        render_escalated_inbox()
     elif page == "Configurações do Bot":
         if check_auth():
             # Import dynamically to avoid circular imports or heavy loads on startup

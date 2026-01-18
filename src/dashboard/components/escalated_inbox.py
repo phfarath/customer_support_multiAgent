@@ -1,0 +1,155 @@
+"""
+Escalated Tickets Inbox Component for Streamlit Dashboard
+"""
+import streamlit as st
+from datetime import datetime
+from src.dashboard.connection import get_collection, COLLECTION_TICKETS, COLLECTION_INTERACTIONS
+from src.models import TicketStatus
+
+
+def render_escalated_inbox():
+    st.header("📥 Tickets Escalados")
+    
+    tickets_col = get_collection(COLLECTION_TICKETS)
+    interactions_col = get_collection(COLLECTION_INTERACTIONS)
+    
+    # Fetch escalated tickets
+    escalated = list(tickets_col.find(
+        {"status": TicketStatus.ESCALATED}
+    ).sort("created_at", -1).limit(50))
+    
+    if not escalated:
+        st.info("🎉 Nenhum ticket escalado no momento!")
+        return
+    
+    col_metric, col_refresh = st.columns([3, 1])
+    with col_metric:
+        st.metric("Total Escalados", len(escalated))
+    with col_refresh:
+        if st.button("🔄 Atualizar", help="Atualizar conversas"):
+            st.rerun()
+    
+    # Ticket selector
+    ticket_options = {
+        f"{t.get('ticket_id')} - {t.get('subject', 'Sem assunto')[:40]}": t.get('ticket_id')
+        for t in escalated
+    }
+    
+    selected_label = st.selectbox("Selecione um Ticket:", list(ticket_options.keys()))
+    selected_ticket_id = ticket_options.get(selected_label)
+    
+    if selected_ticket_id:
+        ticket = next((t for t in escalated if t.get("ticket_id") == selected_ticket_id), None)
+        
+        if ticket:
+            st.markdown("---")
+            
+            # Ticket Info
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.write(f"**Prioridade:** {ticket.get('priority', 'P3')}")
+            with col2:
+                st.write(f"**Canal:** {ticket.get('channel', 'N/A')}")
+            with col3:
+                created = ticket.get('created_at')
+                if created:
+                    st.write(f"**Criado:** {created.strftime('%d/%m %H:%M') if isinstance(created, datetime) else str(created)[:16]}")
+            
+            st.write(f"**Assunto:** {ticket.get('subject', 'N/A')}")
+            st.write(f"**Descrição:** {ticket.get('description', 'N/A')}")
+            
+            # Interactions
+            st.markdown("### 💬 Histórico de Conversas")
+            interactions = list(interactions_col.find(
+                {"ticket_id": selected_ticket_id}
+            ).sort("created_at", 1))
+            
+            for i in interactions:
+                i_type = i.get("type", "unknown")
+                i_content = i.get("content", "")
+                i_source = i.get("source", "")
+                
+                if i_type == "customer_message":
+                    st.chat_message("user").write(i_content)
+                else:
+                    label = "🤖 Bot" if i_source != "human" else "👤 Humano"
+                    st.chat_message("assistant").write(f"{label}: {i_content}")
+            
+            # Reply Form
+            st.markdown("### ✍️ Responder")
+            reply_text = st.text_area("Sua resposta:", key="reply_input")
+            
+            col_send, col_close = st.columns(2)
+            with col_send:
+                if st.button("📤 Enviar Resposta", type="primary"):
+                    if reply_text:
+                        _send_reply(selected_ticket_id, reply_text, close=False)
+                        st.success("Resposta enviada!")
+                        st.rerun()
+                    else:
+                        st.warning("Digite uma resposta.")
+            
+            with col_close:
+                if st.button("✅ Resolver e Fechar"):
+                    if reply_text:
+                        _send_reply(selected_ticket_id, reply_text, close=True)
+                        st.success("Ticket resolvido!")
+                        st.rerun()
+                    else:
+                        st.warning("Digite uma resposta final antes de fechar.")
+
+
+def _send_reply(ticket_id: str, reply_text: str, close: bool):
+    """Send human reply and optionally close the ticket. Also sends to Telegram."""
+    import requests
+    from src.config import settings
+    
+    tickets_col = get_collection(COLLECTION_TICKETS)
+    interactions_col = get_collection(COLLECTION_INTERACTIONS)
+    
+    # Get ticket to find external_user_id
+    ticket = tickets_col.find_one({"ticket_id": ticket_id})
+    
+    # Add interaction
+    interactions_col.insert_one({
+        "ticket_id": ticket_id,
+        "type": "agent_response",
+        "content": reply_text,
+        "source": "human",
+        "created_at": datetime.utcnow()
+    })
+    
+    # Update ticket
+    update_data = {"updated_at": datetime.utcnow()}
+    if close:
+        update_data["status"] = TicketStatus.RESOLVED
+        update_data["resolved_at"] = datetime.utcnow()
+    
+    tickets_col.update_one(
+        {"ticket_id": ticket_id},
+        {"$set": update_data}
+    )
+    
+    # Send message to Telegram if applicable
+    if ticket:
+        external_user_id = ticket.get("external_user_id", "")
+        channel = ticket.get("channel", "")
+        
+        # Check if it's a Telegram user
+        if channel == "telegram" and external_user_id.startswith("telegram:"):
+            try:
+                chat_id = int(external_user_id.replace("telegram:", ""))
+                bot_token = settings.telegram_bot_token
+                
+                if bot_token:
+                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                    payload = {
+                        "chat_id": chat_id,
+                        "text": f"👤 Atendente: {reply_text}",
+                        "parse_mode": "HTML"
+                    }
+                    response = requests.post(url, json=payload, timeout=10)
+                    if not response.ok:
+                        st.error(f"Erro ao enviar para Telegram: {response.text}")
+            except Exception as e:
+                st.error(f"Erro ao enviar mensagem: {e}")

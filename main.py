@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from src.config import settings
 from src.database import ensure_indexes, close_connection
-from src.api import router, ingest_router, telegram_router, company_router
+from src.api import router, ingest_router, telegram_router, company_router, human_router
 
 # Configure logging
 logging.basicConfig(
@@ -51,6 +51,7 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(ingest_router)
 app.include_router(telegram_router)
+app.include_router(human_router)
 
 
 @app.get("/")

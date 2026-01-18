@@ -15,6 +15,7 @@ from tests.seeds.seed_companies import seed_companies
 from tests.scenarios.test_routing import TestRouter
 from tests.scenarios.test_sales import TestSales
 from tests.scenarios.test_rag import TestRAG
+from tests.scenarios.test_escalation import TestEscalation
 
 async def run_suite():
     load_dotenv()
@@ -32,7 +33,8 @@ async def run_suite():
     scenarios = [
         TestRouter("Routing Logic"),
         TestSales("Sales Persona & Products"),
-        TestRAG("RAG Knowledge Retrieval")
+        TestRAG("RAG Knowledge Retrieval"),
+        TestEscalation("Escalation Logic")
     ]
     
     for scenario in scenarios:
