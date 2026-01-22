@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-5-nano"
+    openai_model: str = "gpt-4o-mini"
     
     # API Configuration
     api_host: str = "0.0.0.0"

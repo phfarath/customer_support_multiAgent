@@ -21,3 +21,19 @@ tzdata==2023.3
 # Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
+
+# RAG / Vector Database
+chromadb==0.4.22
+langchain-openai==0.0.5
+langchain-text-splitters==0.0.1
+sentence-transformers==2.2.2
+
+# Dashboard
+streamlit==1.29.0
+
+# Telegram Bot
+python-telegram-bot==20.7
+
+# Additional utilities for production
+slowapi==0.1.9
+sentry-sdk[fastapi]==1.39.1
