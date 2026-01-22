@@ -22,31 +22,31 @@ Antes de fazer qualquer modificação:
 - **Branch:** `feat/escalating_to_human` ✅ CONCLUÍDA
 - **Última Feature:** Sistema de escalação para humanos (emails + stop AI)
 - **Sprint Atual:** **SEMANA 1 - FIX BUGS CRÍTICOS + SECURITY**
-- **Estado:** 75% completo - 3 bugs críticos bloqueiam MVP
+- **Estado:** 85% completo - 3 bugs P0 CORRIGIDOS ✅ - 1 bug P1 restante
 
 ### 🚨 BUGS CRÍTICOS ATIVOS
 
 #### NUNCA faça essas coisas (causam bugs ativos):
 
-1. **NUNCA assuma que `context["company_config"]` existe**
-   - Bug ativo em `src/utils/pipeline.py` - não injeta company_config
-   - Se precisar, sempre verificar: `context.get("company_config", {})`
-   - Fix pendente: adicionar company_config ao pipeline
-
-2. **NUNCA use modelo OpenAI `gpt-5-nano`**
-   - Modelo não existe, causará erro
-   - Use: `gpt-4o-mini` ou `gpt-3.5-turbo`
-   - Fix pendente: atualizar .env.example
-
-3. **NUNCA assuma que dependencies estão instaladas**
-   - `requirements.txt` incompleto
-   - Missing: chromadb, langchain-*, streamlit, python-telegram-bot
-   - Fix pendente: atualizar requirements.txt
-
-4. **NUNCA confie no business hours check**
+1. **NUNCA confie no business hours check**
    - `src/bots/telegram_bot.py:491` sempre retorna True
    - Feature não funciona
    - Fix pendente: implementar parsing correto
+
+#### ✅ BUGS CORRIGIDOS (Jan 22, 2026)
+
+1. **✅ company_config agora está disponível no context**
+   - FIXED: `src/utils/pipeline.py` agora injeta company_config
+   - Context sempre inclui `company_config` (dict vazio se não encontrado)
+   - Todos os agentes têm acesso a produtos, policies e teams
+
+2. **✅ Modelo OpenAI válido configurado**
+   - FIXED: `src/config.py` usa `gpt-4o-mini` (modelo válido)
+   - Todas as chamadas OpenAI funcionam corretamente
+
+3. **✅ Dependencies completas**
+   - FIXED: `requirements.txt` agora inclui todas as dependências
+   - chromadb, langchain-*, streamlit, python-telegram-bot instalados
 
 ### O Que Está Funcionando
 ✅ Pipeline completo (4 agentes) com fallbacks
@@ -60,9 +60,9 @@ Antes de fazer qualquer modificação:
 ### Sprint Atual: Semana 1 (Dias 1-5)
 
 #### Dias 1-2: CRITICAL BUGS
-- [ ] Fix Bug #1: company_config no pipeline
-- [ ] Fix Bug #3: requirements.txt completo
-- [ ] Fix Bug #4: modelo OpenAI correto
+- [x] Fix Bug #1: company_config no pipeline ✅ DONE
+- [x] Fix Bug #3: requirements.txt completo ✅ DONE
+- [x] Fix Bug #4: modelo OpenAI correto ✅ DONE
 - [ ] Fix Bug #2: business hours check
 - [ ] ensure_indexes() no startup
 - [ ] Timeouts em HTTP clients
@@ -715,7 +715,7 @@ def get_ticket(ticket_id: str) -> Dict[str, Any]:
 async def call_openai(prompt: str) -> str:
     try:
         response = await openai_client.chat.completions.create(
-            model="gpt-5-nano",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}]
         )
         return response.choices[0].message.content
@@ -1076,7 +1076,7 @@ except Exception as e:
    - Pipeline execution: SIM (já está implementado)
 
 4. **Não sabe qual modelo OpenAI usar?**
-   - Default: `gpt-5-nano` (rápido e barato)
+   - Default: `gpt-4o-mini` (rápido e barato)
    - Tarefas complexas: `gpt-4-turbo`
    - Embeddings: `text-embedding-3-small`
 
