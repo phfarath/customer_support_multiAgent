@@ -158,9 +158,12 @@ class TelegramBot:
             "allowed_updates": ["message", "callback_query"]
         }
         
-        # Importar httpx e usar um novo client
+        # Usar http_client com timeout customizado
         import httpx
-        async with httpx.AsyncClient(timeout=timeout + 5) as client:
+        from src.utils.http_client import HTTPClient
+        
+        custom_timeout = httpx.Timeout(connect=5.0, read=timeout + 5, write=5.0, pool=5.0)
+        async with HTTPClient(timeout=custom_timeout) as client:
             try:
                 response = await client.post(url, json=payload)
                 response.raise_for_status()

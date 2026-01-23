@@ -1,9 +1,9 @@
 """
 Telegram adapter for handling Telegram Bot API webhooks and sending messages
 """
-import httpx
 from typing import Dict, Any, Optional
 from src.config import settings
+from src.utils.http_client import get_http_client
 
 
 class TelegramAdapter:
@@ -111,10 +111,10 @@ class TelegramAdapter:
             "disable_web_page_preview": disable_web_page_preview
         }
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
     
     async def answer_callback_query(
         self,
@@ -143,10 +143,10 @@ class TelegramAdapter:
         if text:
             payload["text"] = text
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
     
     async def set_webhook(self, webhook_url: str) -> Dict[str, Any]:
         """
@@ -162,10 +162,10 @@ class TelegramAdapter:
         
         payload = {"url": webhook_url}
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.post(url, json=payload)
+        response.raise_for_status()
+        return response.json()
     
     async def get_webhook_info(self) -> Dict[str, Any]:
         """
@@ -176,10 +176,10 @@ class TelegramAdapter:
         """
         url = f"{self.api_url}/getWebhookInfo"
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json()
     
     async def delete_webhook(self) -> Dict[str, Any]:
         """
@@ -190,10 +190,10 @@ class TelegramAdapter:
         """
         url = f"{self.api_url}/deleteWebhook"
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.post(url)
+        response.raise_for_status()
+        return response.json()
     
     async def get_me(self) -> Dict[str, Any]:
         """
@@ -204,7 +204,7 @@ class TelegramAdapter:
         """
         url = f"{self.api_url}/getMe"
         
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.json()
+        client = get_http_client()
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json()

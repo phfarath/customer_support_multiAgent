@@ -34,6 +34,13 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     print("Shutting down...")
+    
+    # Cleanup HTTP clients
+    from src.utils.http_client import cleanup_http_clients
+    await cleanup_http_clients()
+    print("HTTP clients closed")
+    
+    # Close database
     await close_connection()
     print("Database connection closed")
 
