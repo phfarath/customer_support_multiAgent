@@ -7,16 +7,23 @@ from src.dashboard.connection import get_collection, COLLECTION_TICKETS, COLLECT
 from src.models import TicketStatus
 
 
-def render_escalated_inbox():
+def render_escalated_inbox(company_id: str):
+    """
+    Render escalated tickets inbox
+
+    Args:
+        company_id: Company ID from authenticated session (JWT)
+    """
     st.header("📥 Tickets Escalados")
-    
+
     tickets_col = get_collection(COLLECTION_TICKETS)
     interactions_col = get_collection(COLLECTION_INTERACTIONS)
-    
-    # Fetch escalated tickets
-    escalated = list(tickets_col.find(
-        {"status": TicketStatus.ESCALATED}
-    ).sort("created_at", -1).limit(50))
+
+    # Fetch escalated tickets - CRITICAL: Filter by company_id for security
+    escalated = list(tickets_col.find({
+        "status": TicketStatus.ESCALATED,
+        "company_id": company_id  # ← CRITICAL SECURITY FIX
+    }).sort("created_at", -1).limit(50))
     
     if not escalated:
         st.info("🎉 Nenhum ticket escalado no momento!")

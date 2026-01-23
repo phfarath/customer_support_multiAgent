@@ -9,11 +9,11 @@
 
 | Item | Valor |
 |------|-------|
-| **Status Geral** | ✅ Production-ready (~90% completo) |
+| **Status Geral** | ✅ Production-ready (~95% completo) |
 | **Branch Atual** | `feat/escalating_to_human` |
-| **Última Feature** | Sistema de escalação para humanos com emails e stop de IA |
-| **Última Atualização** | 2026-01-20 |
-| **Linhas de Código** | ~5,592 (src/) |
+| **Última Feature** | JWT Dashboard Authentication + API Key Auth |
+| **Última Atualização** | 2026-01-22 |
+| **Linhas de Código** | ~6,200 (src/) |
 
 ---
 
@@ -191,11 +191,26 @@ streamlit run src/dashboard/app.py
 ```
 Interface para agentes humanos responderem tickets escalados.
 
+**Autenticação:** ✅ JWT-based (implementado 22/01/2026)
+- Login com email/senha
+- Senhas hasheadas com bcrypt
+- JWT tokens (validade: 24h)
+- Company isolation (cada usuário só vê dados da própria empresa)
+
+**Criar usuário:**
+```bash
+python scripts/create_dashboard_user.py \
+    --email admin@empresa.com \
+    --password SenhaSegura123! \
+    --company-id empresa_001 \
+    --full-name "Nome Admin"
+```
+
 ---
 
 ## 🗄️ Modelo de Dados (MongoDB)
 
-### 8 Collections Principais:
+### 10 Collections Principais:
 
 #### 1. `tickets`
 ```python
@@ -323,6 +338,40 @@ Interface para agentes humanos responderem tickets escalados.
     "action": "generated_response",
     "details": {...},
     "timestamp": datetime
+}
+```
+
+#### 9. `users`
+**⭐ Dashboard authentication (JWT)**
+```python
+{
+    "_id": ObjectId,
+    "user_id": "user_a1b2c3d4",
+    "email": "admin@empresa.com",  # unique
+    "password_hash": "$2b$12...",  # bcrypt hash
+    "company_id": "comp_abc",
+    "full_name": "Admin User",
+    "role": "admin",  # admin | operator
+    "active": true,
+    "created_at": datetime,
+    "last_login_at": datetime
+}
+```
+
+#### 10. `api_keys`
+**⭐ API authentication**
+```python
+{
+    "_id": ObjectId,
+    "key_id": "key_x1y2z3",
+    "api_key": "sk_AbCdEf...",  # unique, starts with "sk_"
+    "company_id": "comp_abc",
+    "name": "Production API Key",
+    "active": true,
+    "permissions": ["read", "write"],
+    "created_at": datetime,
+    "last_used_at": datetime,
+    "expires_at": datetime  # optional
 }
 ```
 
@@ -477,8 +526,9 @@ Ticket: [subject + description]
 
 ### Não-bloqueadores
 4. **Business hours sempre True** (`src/bots/telegram_bot.py:491`)
-5. **Sem autenticação na API** (endpoints abertos)
-6. **CORS `allow_origins=["*"]`** (security issue)
+5. **CORS `allow_origins=["*"]`** (security issue - pendente fix)
+6. **Input sanitization** (pendente implementação)
+7. **Rate limiting na API** (pendente implementação)
 
 ---
 
@@ -527,10 +577,23 @@ Ticket: [subject + description]
 - ✅ Configurable thresholds por empresa
 
 ### Dashboard Streamlit
-- ✅ Company selection/login
+- ✅ JWT-based authentication (22/01/2026)
+- ✅ Email/password login with bcrypt
+- ✅ Company isolation (users only see own company data)
 - ✅ Escalated tickets inbox
 - ✅ Bot configuration UI
 - ✅ Products management
+
+### Security & Authentication
+- ✅ API Key authentication (20 endpoints protected)
+- ✅ Company isolation on all API endpoints
+- ✅ Dashboard JWT authentication
+- ✅ Bcrypt password hashing
+- ✅ Token-based session management (24h expiration)
+- ✅ Scripts: `create_initial_api_key.py`, `create_dashboard_user.py`
+- ⏳ Input sanitization (pending)
+- ⏳ Rate limiting (pending)
+- ⏳ CORS hardening (pending)
 
 ### Testing
 - ✅ E2E test suite (`tests/scenarios/`)

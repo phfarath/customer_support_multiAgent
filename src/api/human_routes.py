@@ -1,7 +1,7 @@
 """
 API routes for human agent responses to escalated tickets
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
@@ -14,6 +14,7 @@ from src.database import (
 )
 from src.models import TicketStatus
 from src.models.interaction import InteractionType
+from src.middleware.auth import verify_api_key
 
 
 router = APIRouter(prefix="/api/human", tags=["human-agent"])
@@ -33,28 +34,47 @@ class HumanReplyResponse(BaseModel):
 
 
 @router.post("/reply", response_model=HumanReplyResponse)
-async def human_reply(request: HumanReplyRequest) -> HumanReplyResponse:
+async def human_reply(
+    request: HumanReplyRequest,
+    api_key: dict = Depends(verify_api_key)
+) -> HumanReplyResponse:
     """
     Endpoint for human agents to reply to escalated tickets.
-    
+
+    Requires: X-API-Key header
+
     This endpoint:
     1. Validates the ticket exists and is in ESCALATED status
     2. Adds the human's reply as an interaction
     3. Optionally closes the ticket if close_ticket=True
+
+    Args:
+        request: Human reply request
+        api_key: Authenticated API key (auto-injected)
+
+    Returns:
+        Reply confirmation with new ticket status
     """
     tickets_col = get_collection(COLLECTION_TICKETS)
     interactions_col = get_collection(COLLECTION_INTERACTIONS)
     audit_col = get_collection(COLLECTION_AUDIT_LOGS)
-    
+
     # 1. Find ticket
     ticket = await tickets_col.find_one({"ticket_id": request.ticket_id})
-    
+
     if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Ticket {request.ticket_id} not found"
         )
-    
+
+    # Enforce company isolation
+    if ticket.get("company_id") != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ticket {request.ticket_id} not found"
+        )
+
     # 2. Validate status
     current_status = ticket.get("status")
     if current_status != TicketStatus.ESCALATED:
@@ -115,15 +135,26 @@ async def human_reply(request: HumanReplyRequest) -> HumanReplyResponse:
 
 
 @router.get("/escalated")
-async def list_escalated_tickets():
+async def list_escalated_tickets(api_key: dict = Depends(verify_api_key)):
     """
     List all tickets with ESCALATED status
+
+    Requires: X-API-Key header
+    Note: Returns only escalated tickets from own company
+
+    Args:
+        api_key: Authenticated API key (auto-injected)
+
+    Returns:
+        List of escalated tickets
     """
     tickets_col = get_collection(COLLECTION_TICKETS)
-    
-    cursor = tickets_col.find(
-        {"status": TicketStatus.ESCALATED}
-    ).sort("created_at", -1).limit(50)
+
+    # Filter by status AND company_id for isolation
+    cursor = tickets_col.find({
+        "status": TicketStatus.ESCALATED,
+        "company_id": api_key["company_id"]
+    }).sort("created_at", -1).limit(50)
     
     tickets = []
     async for ticket in cursor:

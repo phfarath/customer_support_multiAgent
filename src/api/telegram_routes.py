@@ -1,7 +1,7 @@
 """
 FastAPI routes for Telegram webhook integration
 """
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, status, Request, Depends
 from typing import Dict, Any
 import json
 import logging
@@ -10,6 +10,7 @@ from pathlib import Path
 from src.adapters.telegram_adapter import TelegramAdapter
 from src.models import IngestMessageRequest, IngestChannel
 from src.api.ingest_routes import ingest_message
+from src.middleware.auth import verify_api_key
 
 
 # Configure logging
@@ -23,16 +24,19 @@ _WEBHOOK_DUMP_PATH = Path("logs/telegram_webhook.jsonl")
 async def telegram_webhook(request: Request) -> Dict[str, Any]:
     """
     Telegram webhook endpoint
-    
+
+    NOTE: This endpoint is PUBLIC (no API key required) as it's called by Telegram servers.
+    TODO: Add Telegram webhook signature verification for security.
+
     This endpoint receives updates from Telegram Bot API:
     1. Parses the Telegram update payload
     2. Converts it to the standard ingest format
     3. Calls the /ingest-message endpoint
     4. Sends the response back to the user via Telegram
-    
+
     Args:
         request: FastAPI request with Telegram webhook payload
-        
+
     Returns:
         Success response
     """
@@ -118,10 +122,15 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/webhook/info")
-async def get_webhook_info() -> Dict[str, Any]:
+async def get_webhook_info(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
     """
     Get current Telegram webhook information
-    
+
+    Requires: X-API-Key header
+
+    Args:
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Webhook information from Telegram API
     """
@@ -137,13 +146,19 @@ async def get_webhook_info() -> Dict[str, Any]:
 
 
 @router.post("/webhook/set")
-async def set_webhook(webhook_url: str) -> Dict[str, Any]:
+async def set_webhook(
+    webhook_url: str,
+    api_key: dict = Depends(verify_api_key)
+) -> Dict[str, Any]:
     """
     Set the Telegram webhook URL
-    
+
+    Requires: X-API-Key header
+
     Args:
         webhook_url: URL to receive webhook updates
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Response from Telegram API
     """
@@ -159,10 +174,15 @@ async def set_webhook(webhook_url: str) -> Dict[str, Any]:
 
 
 @router.post("/webhook/delete")
-async def delete_webhook() -> Dict[str, Any]:
+async def delete_webhook(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
     """
     Delete the Telegram webhook
-    
+
+    Requires: X-API-Key header
+
+    Args:
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Response from Telegram API
     """
@@ -178,10 +198,15 @@ async def delete_webhook() -> Dict[str, Any]:
 
 
 @router.get("/bot/info")
-async def get_bot_info() -> Dict[str, Any]:
+async def get_bot_info(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
     """
     Get bot information from Telegram
-    
+
+    Requires: X-API-Key header
+
+    Args:
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Bot information from Telegram API
     """

@@ -20,9 +20,9 @@ Antes de fazer qualquer modificação:
 
 ### Status Atual
 - **Branch:** `feat/escalating_to_human` ✅ CONCLUÍDA
-- **Última Feature:** Sistema de escalação para humanos (emails + stop AI)
+- **Última Feature:** JWT Dashboard Authentication implementada ✅
 - **Sprint Atual:** **SEMANA 1 - FIX BUGS CRÍTICOS + SECURITY**
-- **Estado:** 85% completo - 3 bugs P0 CORRIGIDOS ✅ - 1 bug P1 restante
+- **Estado:** 95% completo - 3 bugs P0 corrigidos ✅ - API auth implementada ✅ - Dashboard JWT implementado ✅
 
 ### 🚨 BUGS CRÍTICOS ATIVOS
 
@@ -52,10 +52,11 @@ Antes de fazer qualquer modificação:
 ✅ Pipeline completo (4 agentes) com fallbacks
 ✅ Telegram bot (webhook + polling) 70%
 ✅ RAG com ChromaDB 100%
-✅ Multi-tenancy (exceto company_config no pipeline)
+✅ Multi-tenancy (company_config + company isolation)
 ✅ Escalação automática com emails
 ✅ Dashboard Streamlit 60%
 ✅ E2E tests (estrutura existe)
+✅ **API Key Authentication (20 endpoints protegidos)**
 
 ### Sprint Atual: Semana 1 (Dias 1-5)
 
@@ -68,9 +69,9 @@ Antes de fazer qualquer modificação:
 - [ ] Timeouts em HTTP clients
 
 #### Dias 3-5: SECURITY
-- [ ] Rotacionar credenciais expostas
-- [ ] API key authentication
-- [ ] JWT para dashboard
+- [ ] Rotacionar credenciais expostas (manual - instruções fornecidas)
+- [x] API key authentication ✅ DONE
+- [x] JWT para dashboard ✅ DONE
 - [ ] Input sanitization
 - [ ] Rate limiting API
 - [ ] Fix CORS policy
@@ -79,6 +80,338 @@ Antes de fazer qualquer modificação:
 - **Semana 2-3:** Deployment (AWS ECS) + Testing
 - **Mês 2:** WhatsApp + Email Inbound (V1.1)
 - **Mês 2-3:** Dashboard completo (V1.2)
+
+---
+
+## 🔐 Autenticação e Segurança (Implementado)
+
+### API Key Authentication
+
+**Status:** ✅ Implementado (22/01/2026)
+
+Todos os endpoints da API agora requerem autenticação via API keys, exceto:
+- `/` (root)
+- `/docs` `/redoc` `/openapi.json` (documentação)
+- `/api/health` (health check)
+- `/telegram/webhook` (público - chamado pelo Telegram)
+
+### Como Usar API Keys
+
+#### 1. Criar Primeira API Key (Bootstrap)
+
+```bash
+python scripts/create_initial_api_key.py --company-id techcorp_001 --name "Initial Key"
+```
+
+Output:
+```
+✅ API Key created successfully!
+Company ID: techcorp_001
+Key ID: key_a1b2c3d4
+API Key: sk_AbCdEfGhIjKlMnOpQrStUvWxYz1234567890
+
+⚠️  IMPORTANT: Save this API key securely. It won't be shown again.
+```
+
+#### 2. Usar API Key nas Requisições
+
+Todas as requisições devem incluir o header `X-API-Key`:
+
+```bash
+curl -X GET http://localhost:8000/api/tickets \
+  -H "X-API-Key: sk_AbCdEfGhIjKlMnOpQrStUvWxYz1234567890"
+```
+
+#### 3. Gerenciar API Keys
+
+**Listar Keys:**
+```bash
+curl -X GET http://localhost:8000/api/keys \
+  -H "X-API-Key: sk_..."
+```
+
+**Criar Nova Key:**
+```bash
+curl -X POST http://localhost:8000/api/keys \
+  -H "X-API-Key: sk_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "company_id": "techcorp_001",
+    "name": "Production API Key",
+    "permissions": ["read", "write"]
+  }'
+```
+
+**Revogar Key:**
+```bash
+curl -X DELETE http://localhost:8000/api/keys/key_a1b2c3d4 \
+  -H "X-API-Key: sk_..."
+```
+
+### Company Isolation
+
+**Importante:** Cada API key está vinculada a uma `company_id`. O sistema garante que:
+- Você só pode acessar dados da sua empresa
+- Não pode criar/modificar recursos de outras empresas
+- Tentativas de acesso cross-company retornam 404 (não 403, para não vazar informação)
+
+**Exemplo:**
+```python
+# API key da empresa A tenta acessar ticket da empresa B
+curl -X GET http://localhost:8000/api/tickets/TICKET-001 \
+  -H "X-API-Key: sk_empresa_A_..."
+
+# Response: 404 Not Found (mesmo se o ticket existir)
+# Isso previne information disclosure
+```
+
+### Arquivos Relacionados
+
+- **Modelo:** `src/models/api_key.py`
+- **Middleware:** `src/middleware/auth.py`
+- **Routes:** `src/api/api_key_routes.py`
+- **Script:** `scripts/create_initial_api_key.py`
+- **Collections:** MongoDB `api_keys` collection
+
+### Endpoints Protegidos (20)
+
+#### Tickets (7)
+- ✅ POST `/api/tickets` - Criar ticket
+- ✅ POST `/api/run_pipeline/{ticket_id}` - Executar pipeline
+- ✅ GET `/api/tickets/{ticket_id}` - Ver ticket
+- ✅ GET `/api/tickets/{ticket_id}/audit` - Ver audit logs
+- ✅ GET `/api/tickets/{ticket_id}/interactions` - Ver interações
+- ✅ GET `/api/tickets/{ticket_id}/agent_states` - Ver estados de agentes
+- ✅ GET `/api/tickets` - Listar tickets
+
+#### Ingest (1)
+- ✅ POST `/api/ingest-message` - Ingerir mensagem
+
+#### Company Config (5)
+- ✅ POST `/api/companies/` - Criar config
+- ✅ GET `/api/companies/{company_id}` - Ver config
+- ✅ PUT `/api/companies/{company_id}` - Atualizar config
+- ✅ DELETE `/api/companies/{company_id}` - Deletar config
+- ✅ GET `/api/companies/` - Listar configs
+
+#### Human Agent (2)
+- ✅ POST `/api/human/reply` - Responder ticket escalado
+- ✅ GET `/api/human/escalated` - Listar tickets escalados
+
+#### Telegram Admin (4)
+- ✅ GET `/telegram/webhook/info` - Info do webhook
+- ✅ POST `/telegram/webhook/set` - Configurar webhook
+- ✅ POST `/telegram/webhook/delete` - Deletar webhook
+- ✅ GET `/telegram/bot/info` - Info do bot
+
+#### API Keys (3)
+- ✅ POST `/api/keys/` - Criar API key
+- ✅ GET `/api/keys/` - Listar API keys
+- ✅ DELETE `/api/keys/{key_id}` - Revogar API key
+
+### Boas Práticas
+
+**DO:**
+- ✅ Criar uma API key por ambiente (dev, staging, prod)
+- ✅ Revogar keys antigas quando não mais necessárias
+- ✅ Usar nomes descritivos para as keys
+- ✅ Armazenar keys em variáveis de ambiente, não no código
+
+**DON'T:**
+- ❌ Commitar API keys no git
+- ❌ Compartilhar API keys entre empresas
+- ❌ Usar a mesma key para múltiplos ambientes
+- ❌ Expor API keys em logs ou mensagens de erro
+
+---
+
+## 🔐 Dashboard Authentication (JWT)
+
+**Status:** ✅ Implementado (22/01/2026)
+
+O Streamlit Dashboard agora possui sistema completo de autenticação com JWT tokens.
+
+### Como Funciona
+
+**Login Flow:**
+1. Usuário acessa `http://localhost:8501`
+2. Apresenta tela de login (email + senha)
+3. Backend valida credenciais e verifica senha com bcrypt
+4. Cria JWT token com dados do usuário (validade: 24h)
+5. Armazena token em `st.session_state`
+6. Redireciona para dashboard com sidebar mostrando dados do usuário
+
+**Session Management:**
+- JWT token verificado em cada reload de página
+- Token contém: `user_id`, `company_id`, `email`, `full_name`, `role`
+- Expiração automática após 24h
+- Logout limpa session e redireciona para login
+
+**Company Isolation (CRÍTICO):**
+- Todos os componentes do dashboard filtram por `company_id` do usuário autenticado
+- Impossível ver/modificar dados de outras empresas
+- Queries MongoDB sempre incluem filtro: `{"company_id": user_data["company_id"]}`
+
+### Como Criar Usuários
+
+#### 1. Criar Primeiro Usuário (Bootstrap)
+
+```bash
+python scripts/create_dashboard_user.py \
+    --email admin@techcorp.com \
+    --password Admin123! \
+    --company-id techcorp_001 \
+    --full-name "Admin Techcorp" \
+    --role admin
+```
+
+Output:
+```
+✅ User created successfully!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+User ID:     user_a1b2c3d4e5f6g7h8
+Email:       admin@techcorp.com
+Full Name:   Admin Techcorp
+Company ID:  techcorp_001
+Role:        admin
+Active:      True
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔐 Login Information:
+   Email:    admin@techcorp.com
+   Password: Admin123!
+
+🌐 Dashboard URL:
+   http://localhost:8501
+```
+
+#### 2. Criar Usuário Operador
+
+```bash
+python scripts/create_dashboard_user.py \
+    --email operador@techcorp.com \
+    --password Operador123! \
+    --company-id techcorp_001 \
+    --full-name "João Silva"
+    # role padrão é "operator"
+```
+
+### Roles de Usuário
+
+**Admin:**
+- Acesso completo ao dashboard
+- Pode modificar configurações do bot
+- Pode gerenciar produtos
+- Pode responder tickets escalados
+
+**Operator:**
+- Pode visualizar tickets escalados
+- Pode responder tickets
+- Pode visualizar configurações (sem editar)
+
+### Segurança
+
+**Senhas:**
+- Hasheadas com bcrypt (custo: 12 rounds)
+- Truncadas automaticamente a 72 bytes (limite do bcrypt)
+- Nunca armazenadas em plaintext
+
+**JWT Tokens:**
+- Assinados com `settings.jwt_secret_key` (deve ser configurado no `.env`)
+- Algoritmo: HS256
+- Payload inclui: `user_id`, `company_id`, `email`, `full_name`, `role`, `exp`, `iat`
+- Expiração: 24 horas
+
+**Company Isolation:**
+```python
+# ✅ CORRETO - Todos os componentes filtram por company_id
+def render_escalated_inbox(company_id: str):
+    tickets = tickets_col.find({
+        "status": "escalated",
+        "company_id": company_id  # ← CRÍTICO
+    })
+
+# ❌ ERRADO - Sem filtro, vaza dados de outras empresas
+def render_escalated_inbox():
+    tickets = tickets_col.find({"status": "escalated"})
+```
+
+### Arquivos Relacionados
+
+**Modelo:**
+- `src/models/user.py` - User model com hash/verify de senha
+
+**JWT Handler:**
+- `src/utils/jwt_handler.py` - create_jwt_token, verify_jwt_token, refresh_jwt_token
+
+**Dashboard:**
+- `src/dashboard/app.py` - Login, autenticação, session management
+- `src/dashboard/components/escalated_inbox.py` - Filtro por company_id
+- `src/dashboard/components/bot_config.py` - Filtro por company_id
+- `src/dashboard/components/products_config.py` - Filtro por company_id
+
+**Script:**
+- `scripts/create_dashboard_user.py` - Criação de usuários
+
+**Database:**
+- MongoDB `users` collection
+
+### Configuração Necessária
+
+**`.env` file:**
+```bash
+# JWT Secret (IMPORTANTE: Gerar valor único em produção)
+JWT_SECRET_KEY=your-super-secret-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_EXPIRATION_HOURS=24
+```
+
+**Gerar secret seguro:**
+```python
+import secrets
+print(secrets.token_urlsafe(32))
+# Output: "AbCdEfGhIjKlMnOpQrStUvWxYz1234567890AbCdEf"
+```
+
+### Boas Práticas
+
+**DO:**
+- ✅ Usar senhas fortes (mínimo 8 chars, letras + números + símbolos)
+- ✅ Configurar `JWT_SECRET_KEY` única por ambiente
+- ✅ Criar usuários separados por operador (não compartilhar credenciais)
+- ✅ Desativar usuários que saíram da empresa (`active: False`)
+
+**DON'T:**
+- ❌ Usar `JWT_SECRET_KEY` padrão em produção
+- ❌ Compartilhar credenciais de login
+- ❌ Deletar usuários (desative com `active: False` para manter audit trail)
+- ❌ Commitar senhas no git
+
+### Troubleshooting
+
+**Login não funciona:**
+```bash
+# 1. Verificar se usuário existe no MongoDB
+mongo --eval 'db.users.findOne({email: "admin@techcorp.com"})'
+
+# 2. Verificar se senha foi hasheada corretamente
+# Password hash deve começar com "$2b$"
+
+# 3. Verificar logs do Streamlit
+streamlit run src/dashboard/app.py
+```
+
+**JWT expira muito rápido:**
+```bash
+# Aumentar tempo de expiração em .env
+JWT_EXPIRATION_HOURS=48  # 2 dias
+```
+
+**KeyError ao fazer login:**
+```bash
+# Erro: KeyError: 'full_name' ou 'role'
+# Fix: Fazer logout e login novamente (token antigo não tem esses campos)
+```
 
 ---
 

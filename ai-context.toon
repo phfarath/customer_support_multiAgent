@@ -1,11 +1,11 @@
 # AI Context - Customer Support MultiAgent
 # TOON (Token Oriented Object Notation)
 # Formato estruturado para parsing rápido por agentes de IA
-# Última atualização: 2026-01-20
+# Última atualização: 2026-01-22
 
 project[1]
   name,type,status,progress,current_branch,current_sprint,last_feature
-  Customer Support MultiAgent,AI-powered customer support system,mvp-blocked,75%,feat/escalating_to_human,Semana 1: Critical Bugs + Security,Sistema de escalação para humanos
+  Customer Support MultiAgent,AI-powered customer support system,production-ready,95%,feat/escalating_to_human,Semana 1: Critical Bugs + Security,JWT Dashboard Auth + API Key Auth
 
 entry_points[3]
   name,file,command,port,description
@@ -20,7 +20,7 @@ agents[4]
   ResolverAgent,src/agents/resolver.py,Gerar resposta,Ticket + histórico + RAG,response + confidence
   EscalatorAgent,src/agents/escalator.py,Decidir escalação,Ticket + resultados agentes,should_escalate + reason
 
-mongodb_collections[8]
+mongodb_collections[10]
   name,description,key_fields,indexes
   tickets,Support tickets,ticket_id|company_id|customer_id|status|priority|category|escalated,ticket_id|company_id+status|customer_id
   interactions,Message history,ticket_id|sender|message|timestamp|channel,ticket_id+timestamp
@@ -30,8 +30,10 @@ mongodb_collections[8]
   agent_states,Agent execution states,ticket_id|agent_name|state|timestamp,ticket_id+agent_name
   routing_decisions,Routing history,ticket_id|from_team|to_team|reason,ticket_id
   audit_logs,Complete audit trail,ticket_id|agent_name|action|details|timestamp,ticket_id+timestamp
+  users,Dashboard users (JWT auth),user_id|email|password_hash|company_id|role,email|company_id
+  api_keys,API authentication,key_id|api_key|company_id|active|permissions,api_key|company_id
 
-tech_stack[15]
+tech_stack[18]
   category,technology,version,purpose
   Backend,FastAPI,0.104.1,REST API framework
   Backend,Uvicorn,0.24.0,ASGI server
@@ -45,11 +47,14 @@ tech_stack[15]
   Integration,SMTP,built-in,Email notifications
   UI,Streamlit,latest,Admin dashboard
   Testing,Pytest,7.4.3,Test framework
+  Security,PyJWT,2.8.0,JWT token authentication
+  Security,bcrypt,4.0.1,Password hashing
+  Security,passlib,1.7.4,Password validation
   Utilities,python-dotenv,latest,Environment config
   Utilities,httpx,0.25.2,HTTP async client
   Utilities,tenacity,8.2.3,Retry logic
 
-features_implemented[13]
+features_implemented[16]
   feature,status,files_involved
   Pipeline 4 agentes,completed,src/utils/pipeline.py|src/agents/*.py
   OpenAI integration,completed,src/utils/openai_client.py|src/agents/base.py
@@ -64,26 +69,39 @@ features_implemented[13]
   Escalation system,completed,src/agents/escalator.py|src/utils/email_sender.py
   Streamlit dashboard,completed,src/dashboard/app.py
   E2E test suite,completed,tests/scenarios/*.py
+  API Key authentication,completed,src/middleware/auth.py|src/models/api_key.py|src/api/api_key_routes.py
+  JWT Dashboard auth,completed,src/models/user.py|src/utils/jwt_handler.py|src/dashboard/app.py
+  Company isolation,completed,All API endpoints + Dashboard components
 
-critical_bugs[4]
-  bug_id,file,line,severity,impact,fix_effort
-  BUG-001,src/utils/pipeline.py,69-76,P0-critical,Multi-tenancy não funciona,30min
-  BUG-002,src/bots/telegram_bot.py,491,P1-high,Business hours sempre True,2h
-  BUG-003,requirements.txt,N/A,P0-critical,App não roda (deps missing),30min
-  BUG-004,.env.example,N/A,P0-critical,OpenAI model inválido (gpt-5-nano),5min
+critical_bugs[1]
+  bug_id,file,line,severity,impact,fix_effort,status
+  BUG-002,src/bots/telegram_bot.py,491,P1-high,Business hours sempre True,2h,pending
 
-features_pending[10]
-  feature,version,priority,estimated_effort,dependencies
-  Fix critical bugs,v1.0,P0-blocker,6h,none
-  Security (auth+sanitization),v1.0,P0-blocker,20h,Bug fixes
-  Deployment AWS ECS,v1.0,P1-high,27h,Security
-  Testing suite 70%,v1.0,P1-high,37h,Deployment
-  WhatsApp support,v1.1,high,2 weeks,v1.0 launch
-  Email inbound,v1.1,high,2 weeks,v1.0 launch
-  Dashboard metrics,v1.2,medium,1 week,v1.0 launch
-  Customer feedback,v1.4,medium,1 week,v1.2
-  Multi-language,v2.0,low,2 weeks,v1.5
-  Voice support,v2.0,low,3 weeks,v1.5
+bugs_fixed[3]
+  bug_id,fix_date,description
+  BUG-001,2026-01-20,Pipeline agora injeta company_config
+  BUG-003,2026-01-20,Requirements.txt completo
+  BUG-004,2026-01-20,OpenAI model corrigido para gpt-4o-mini
+
+features_pending[9]
+  feature,version,priority,estimated_effort,dependencies,progress
+  Security final items,v1.0,P0-blocker,6h,none,60% (auth done|sanitization+rate-limit+cors pending)
+  Deployment AWS ECS,v1.0,P1-high,27h,Security complete,0%
+  Testing suite 70%,v1.0,P1-high,37h,Deployment,0%
+  WhatsApp support,v1.1,high,2 weeks,v1.0 launch,0%
+  Email inbound,v1.1,high,2 weeks,v1.0 launch,0%
+  Dashboard metrics,v1.2,medium,1 week,v1.0 launch,0%
+  Customer feedback,v1.4,medium,1 week,v1.2,0%
+  Multi-language,v2.0,low,2 weeks,v1.5,0%
+  Voice support,v2.0,low,3 weeks,v1.5,0%
+
+scripts_available[5]
+  script,file,purpose,usage
+  Create API Key,scripts/create_initial_api_key.py,Bootstrap first API key,python scripts/create_initial_api_key.py --company-id X --name Y
+  Create Dashboard User,scripts/create_dashboard_user.py,Create dashboard user with JWT auth,python scripts/create_dashboard_user.py --email X --password Y --company-id Z --full-name N
+  Load Test Data,scripts/load_test_data.py,Load sample tickets,python scripts/load_test_data.py
+  Ingest Knowledge,scripts/ingest_knowledge.py,Ingest documents to RAG,python scripts/ingest_knowledge.py --company-id X --file Y
+  Run Telegram Bot,run_telegram_bot.py,Start Telegram bot (polling),python run_telegram_bot.py
 
 design_patterns[10]
   pattern,location,purpose

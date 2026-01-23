@@ -15,6 +15,8 @@ from .connection import (
     COLLECTION_COMPANY_CONFIGS,
     COLLECTION_CUSTOMERS,
     COLLECTION_BOT_SESSIONS,
+    COLLECTION_API_KEYS,
+    COLLECTION_USERS,
 )
 from .transactions import with_transaction
 
@@ -33,4 +35,6 @@ __all__ = [
     "COLLECTION_COMPANY_CONFIGS",
     "COLLECTION_CUSTOMERS",
     "COLLECTION_BOT_SESSIONS",
+    "COLLECTION_API_KEYS",
+    "COLLECTION_USERS",
 ]

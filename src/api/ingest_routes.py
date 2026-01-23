@@ -1,7 +1,7 @@
 """
 FastAPI routes for channel-agnostic message ingestion
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import Dict, Any
 from datetime import datetime
 
@@ -28,6 +28,7 @@ from src.utils import AgentPipeline
 from src.utils.email_notifier import send_escalation_email
 from src.models.interaction import InteractionType
 from src.models import CompanyConfig
+from src.middleware.auth import verify_api_key
 
 
 router = APIRouter(prefix="/api", tags=["ingest"])
@@ -54,29 +55,46 @@ async def _get_last_interactions(ticket_id: str, limit: int = 3) -> list[Dict[st
 
 
 @router.post("/ingest-message", response_model=IngestMessageResponse)
-async def ingest_message(request: IngestMessageRequest) -> IngestMessageResponse:
+async def ingest_message(
+    request: IngestMessageRequest,
+    api_key: dict = Depends(verify_api_key)
+) -> IngestMessageResponse:
     """
     Channel-agnostic endpoint for ingesting messages from any channel
-    
+
+    Requires: X-API-Key header
+
     This endpoint handles incoming messages from Telegram, WhatsApp, or any other channel.
     It will:
     1. Find or create a ticket for the user on the specified channel
     2. Add the message as a customer interaction
     3. Run the agent pipeline to generate a response
     4. Return the response text and escalation status
-    
+
     Args:
         request: Message ingestion request with channel, external_user_id, and text
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Response with reply_text, escalation status, and ticket information
     """
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"Received ingest message request: {request}")
-    
+
+    # Enforce company isolation
+    if request.company_id and request.company_id != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot ingest message for different company"
+        )
+
+    # Set company_id from API key if not provided
+    if not request.company_id:
+        request.company_id = api_key["company_id"]
+
     pipeline = AgentPipeline()
-    
+
     try:
         # Convert IngestChannel to TicketChannel
         logger.info(f"Converting channel: {request.channel} to TicketChannel")

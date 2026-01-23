@@ -16,6 +16,7 @@ from .routing_decision import RoutingDecision, RoutingDecisionCreate
 from .audit_log import AuditLog, AuditLogCreate, AuditOperation
 from .ingest import IngestMessageRequest, IngestMessageResponse, IngestChannel
 from .company_config import CompanyConfig, CompanyConfigCreate, CompanyConfigUpdate
+from .user import User, UserCreate
 
 __all__ = [
     "Ticket",
@@ -41,4 +42,6 @@ __all__ = [
     "CompanyConfig",
     "CompanyConfigCreate",
     "CompanyConfigUpdate",
+    "User",
+    "UserCreate",
 ]

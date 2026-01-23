@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     telegram_bot_token: Optional[str] = None
     telegram_polling_timeout: int = 30
 
+    # JWT Configuration (for dashboard authentication)
+    jwt_secret_key: str = "CHANGE_THIS_IN_PRODUCTION"  # Must be set in .env
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 24
+
     # SMTP Configuration (for escalation emails)
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
