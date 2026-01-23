@@ -69,7 +69,7 @@ Antes de fazer qualquer modificação:
 - [ ] Timeouts em HTTP clients
 
 #### Dias 3-5: SECURITY ✅ COMPLETE
-- [ ] Rotacionar credenciais expostas (manual - instruções fornecidas) ⚠️ PENDING
+- [X] Rotacionar credenciais expostas ✅ DONE (23/01/2026)
 - [x] API key authentication ✅ DONE (22/01/2026)
 - [x] JWT para dashboard ✅ DONE (22/01/2026)
 - [x] Input sanitization ✅ DONE (23/01/2026)
