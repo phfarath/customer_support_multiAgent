@@ -1,9 +1,11 @@
 """
 FastAPI routes for channel-agnostic message ingestion
 """
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import Dict, Any
 from datetime import datetime
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.models import (
     IngestMessageRequest,
@@ -29,9 +31,19 @@ from src.utils.email_notifier import send_escalation_email
 from src.models.interaction import InteractionType
 from src.models import CompanyConfig
 from src.middleware.auth import verify_api_key
+from src.utils.sanitization import (
+    sanitize_text,
+    sanitize_identifier,
+    sanitize_phone,
+    sanitize_email,
+    sanitize_company_id
+)
 
 
 router = APIRouter(prefix="/api", tags=["ingest"])
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 async def _get_company_config(company_id: str) -> CompanyConfig | None:
@@ -55,7 +67,9 @@ async def _get_last_interactions(ticket_id: str, limit: int = 3) -> list[Dict[st
 
 
 @router.post("/ingest-message", response_model=IngestMessageResponse)
+@limiter.limit("20/minute")  # Rate limit: 20 messages per minute
 async def ingest_message(
+    http_request: Request,  # Required by slowapi
     request: IngestMessageRequest,
     api_key: dict = Depends(verify_api_key)
 ) -> IngestMessageResponse:
@@ -93,6 +107,23 @@ async def ingest_message(
     if not request.company_id:
         request.company_id = api_key["company_id"]
 
+    # SANITIZE ALL INPUTS
+    try:
+        company_id = sanitize_company_id(request.company_id)
+        text = sanitize_text(request.text, max_length=4000)
+        external_user_id = sanitize_identifier(request.external_user_id)
+
+        # Sanitize optional fields
+        customer_phone = sanitize_phone(request.customer_phone) if request.customer_phone else None
+        customer_email = sanitize_email(request.customer_email) if request.customer_email else None
+
+    except ValueError as e:
+        logger.warning(f"Input validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+
     pipeline = AgentPipeline()
 
     try:
@@ -101,31 +132,31 @@ async def ingest_message(
         ticket_channel = TicketChannel(request.channel.value)
         logger.info(f"TicketChannel: {ticket_channel}")
         
-        # Find or create ticket
+        # Find or create ticket (using sanitized values)
         logger.info("Finding or creating ticket...")
         ticket, is_new_ticket = await find_or_create_ticket(
-            external_user_id=request.external_user_id,
+            external_user_id=external_user_id,
             channel=ticket_channel,
-            text=request.text,
-            company_id=request.company_id
+            text=text,
+            company_id=company_id
         )
         logger.info(f"Ticket found/created: ticket_id={ticket.get('ticket_id')}, is_new={is_new_ticket}")
         
         ticket_id = ticket["ticket_id"]
         was_escalated = ticket.get("status") == TicketStatus.ESCALATED
         
-        # Add customer interaction
+        # Add customer interaction (using sanitized text)
         await add_interaction(
             ticket_id=ticket_id,
             interaction_type=InteractionType.CUSTOMER_MESSAGE,
-            content=request.text,
+            content=text,
             channel=request.channel.value
         )
         
         # Update ticket interactions count
         await update_ticket_interactions_count(ticket_id)
 
-        # Create audit log for message ingestion
+        # Create audit log for message ingestion (using sanitized values)
         audit_collection = get_collection(COLLECTION_AUDIT_LOGS)
         await audit_collection.insert_one({
             "ticket_id": ticket_id,
@@ -134,8 +165,8 @@ async def ingest_message(
             "before": {},
             "after": {
                 "channel": request.channel.value,
-                "external_user_id": request.external_user_id,
-                "text": request.text,
+                "external_user_id": external_user_id,
+                "text": text,
                 "is_new_ticket": is_new_ticket
             },
             "timestamp": datetime.utcnow()

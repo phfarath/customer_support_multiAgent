@@ -1,10 +1,12 @@
 """
 API routes for human agent responses to escalated tickets
 """
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.database import (
     get_collection,
@@ -15,9 +17,13 @@ from src.database import (
 from src.models import TicketStatus
 from src.models.interaction import InteractionType
 from src.middleware.auth import verify_api_key
+from src.utils.sanitization import sanitize_text, sanitize_identifier
 
 
 router = APIRouter(prefix="/api/human", tags=["human-agent"])
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 class HumanReplyRequest(BaseModel):
@@ -34,7 +40,9 @@ class HumanReplyResponse(BaseModel):
 
 
 @router.post("/reply", response_model=HumanReplyResponse)
+@limiter.limit("30/minute")  # Human replies (write operation)
 async def human_reply(
+    http_request: Request,  # Required by slowapi
     request: HumanReplyRequest,
     api_key: dict = Depends(verify_api_key)
 ) -> HumanReplyResponse:
@@ -75,6 +83,16 @@ async def human_reply(
             detail=f"Ticket {request.ticket_id} not found"
         )
 
+    # SANITIZE INPUTS
+    try:
+        ticket_id = sanitize_identifier(request.ticket_id)
+        reply_text = sanitize_text(request.reply_text, max_length=4000)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+
     # 2. Validate status
     current_status = ticket.get("status")
     if current_status != TicketStatus.ESCALATED:
@@ -85,9 +103,9 @@ async def human_reply(
     
     # 3. Add human reply as interaction
     interaction_data = {
-        "ticket_id": request.ticket_id,
+        "ticket_id": ticket_id,
         "type": InteractionType.AGENT_RESPONSE,
-        "content": request.reply_text,
+        "content": reply_text,
         "source": "human",
         "created_at": datetime.utcnow()
     }
@@ -98,7 +116,7 @@ async def human_reply(
     if request.close_ticket:
         new_status = TicketStatus.RESOLVED
         await tickets_col.update_one(
-            {"ticket_id": request.ticket_id},
+            {"ticket_id": ticket_id},
             {"$set": {
                 "status": TicketStatus.RESOLVED,
                 "resolved_at": datetime.utcnow(),
@@ -108,13 +126,13 @@ async def human_reply(
     else:
         # Keep as escalated but update timestamp
         await tickets_col.update_one(
-            {"ticket_id": request.ticket_id},
+            {"ticket_id": ticket_id},
             {"$set": {"updated_at": datetime.utcnow()}}
         )
-    
+
     # 5. Audit log
     await audit_col.insert_one({
-        "ticket_id": request.ticket_id,
+        "ticket_id": ticket_id,
         "agent_name": "human",
         "operation": "HUMAN_REPLY",
         "before": {"status": current_status},
@@ -125,17 +143,21 @@ async def human_reply(
         },
         "timestamp": datetime.utcnow()
     })
-    
+
     return HumanReplyResponse(
         success=True,
         message="Reply sent successfully" + (" and ticket closed" if request.close_ticket else ""),
-        ticket_id=request.ticket_id,
+        ticket_id=ticket_id,
         new_status=new_status
     )
 
 
 @router.get("/escalated")
-async def list_escalated_tickets(api_key: dict = Depends(verify_api_key)):
+@limiter.limit("200/minute")  # Read operation
+async def list_escalated_tickets(
+    http_request: Request,  # Required by slowapi
+    api_key: dict = Depends(verify_api_key)
+):
     """
     List all tickets with ESCALATED status
 

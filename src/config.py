@@ -2,7 +2,7 @@
 Application Configuration
 """
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings(BaseSettings):
@@ -55,7 +55,25 @@ class Settings(BaseSettings):
     escalation_min_confidence: float = 0.6
     escalation_min_sentiment: float = -0.7
     escalation_sla_hours: int = 4
-    
+
+    # Rate Limiting Configuration (API protection)
+    rate_limit_default: str = "100/minute"  # Default rate limit for endpoints
+    rate_limit_ingest: str = "20/minute"    # Message ingestion (prevents spam)
+    rate_limit_pipeline: str = "10/minute"  # Pipeline execution (expensive)
+    rate_limit_read: str = "200/minute"     # Read-only operations
+    rate_limit_write: str = "30/minute"     # Write operations
+    rate_limit_admin: str = "10/minute"     # Admin operations (create/delete configs)
+
+    # CORS Configuration (Cross-Origin Resource Sharing)
+    cors_allowed_origins: List[str] = [
+        "http://localhost:3000",      # React dev server
+        "http://localhost:8501",      # Streamlit dashboard
+        "http://127.0.0.1:3000",      # Alternative localhost
+        "http://127.0.0.1:8501",      # Alternative localhost
+        # Production domains should be added via environment variable
+        # Example: CORS_ALLOWED_ORIGINS=https://dashboard.yourdomain.com,https://api.yourdomain.com
+    ]
+
     # Logging
     log_level: str = "INFO"
     
