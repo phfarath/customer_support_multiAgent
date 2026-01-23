@@ -31,10 +31,11 @@ async def find_or_create_ticket(
     collection = get_collection(COLLECTION_TICKETS)
     
     # Try to find an existing open ticket for this user and channel
+    # Include ESCALATED to prevent creating new ticket when user sends follow-up
     filter_query = {
         "external_user_id": external_user_id,
         "channel": channel,
-        "status": {"$in": [TicketStatus.OPEN, TicketStatus.IN_PROGRESS]}
+        "status": {"$in": [TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.ESCALATED]}
     }
     
     ticket = await collection.find_one(filter_query, session=session)

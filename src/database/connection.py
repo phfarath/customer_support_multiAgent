@@ -66,6 +66,8 @@ COLLECTION_AUDIT_LOGS = "audit_logs"
 COLLECTION_COMPANY_CONFIGS = "company_configs"
 COLLECTION_CUSTOMERS = "customers"
 COLLECTION_BOT_SESSIONS = "bot_sessions"
+COLLECTION_API_KEYS = "api_keys"
+COLLECTION_USERS = "users"
 
 
 async def ensure_indexes():
@@ -108,3 +110,12 @@ async def ensure_indexes():
     
     # Company configs indexes
     await db[COLLECTION_COMPANY_CONFIGS].create_index([("company_id", 1)], unique=True)
+
+    # API Keys indexes
+    await db[COLLECTION_API_KEYS].create_index([("api_key", 1)], unique=True)
+    await db[COLLECTION_API_KEYS].create_index([("company_id", 1)])
+    await db[COLLECTION_API_KEYS].create_index([("active", 1)])
+
+    # Users indexes
+    await db[COLLECTION_USERS].create_index([("email", 1)], unique=True)
+    await db[COLLECTION_USERS].create_index([("company_id", 1)])

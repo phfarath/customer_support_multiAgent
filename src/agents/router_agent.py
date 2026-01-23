@@ -15,16 +15,16 @@ from src.database import (
     COLLECTION_TICKETS,
     COLLECTION_ROUTING_DECISIONS,
     COLLECTION_AUDIT_LOGS,
+    COLLECTION_COMPANY_CONFIGS
 )
+from src.models.company_config import CompanyConfig
 from datetime import datetime
 
 
 class RouterAgent(BaseAgent):
     """
-    Router Agent determines which team should handle a ticket:
-    - billing: Payment, refund, invoice issues
-    - tech: Technical problems, bugs, app issues
-    - general: General inquiries, how-to questions
+    Router Agent determines which team should handle a ticket.
+    Teams are dynamically loaded from CompanyConfig.
     """
     
     def __init__(self):
@@ -62,11 +62,15 @@ class RouterAgent(BaseAgent):
                 message="No ticket data provided"
             )
         
+        # Fetch company config
+        company_config = await self._get_company_config(ticket.get("company_id", "techcorp_001"))
+        
         # Make routing decision
         routing = await self._make_routing_decision(
             ticket,
             triage_result,
-            customer_history
+            customer_history,
+            company_config
         )
         
         # Save routing decision
@@ -96,11 +100,20 @@ class RouterAgent(BaseAgent):
             message=f"Ticket routed to {routing['target_team']} team"
         )
     
+    async def _get_company_config(self, company_id: str) -> Optional[CompanyConfig]:
+        """Fetch company configuration from database"""
+        collection = get_collection(COLLECTION_COMPANY_CONFIGS)
+        data = await collection.find_one({"company_id": company_id})
+        if data:
+            return CompanyConfig(**data)
+        return None
+
     async def _make_routing_decision(
         self,
         ticket: Dict[str, Any],
         triage_result: Dict[str, Any],
-        customer_history: list
+        customer_history: list,
+        company_config: Optional[CompanyConfig]
     ) -> Dict[str, Any]:
         """
         Determine which team should handle the ticket using OpenAI
@@ -109,6 +122,7 @@ class RouterAgent(BaseAgent):
             ticket: Ticket data
             triage_result: Results from triage agent
             customer_history: Customer's previous tickets
+            company_config: Company configuration with teams
             
         Returns:
             Dict with target_team, confidence, and reasons
@@ -121,6 +135,21 @@ class RouterAgent(BaseAgent):
         category = triage_result.get("category", "general")
         sentiment = triage_result.get("sentiment", 0.0)
         
+        # Build available teams context
+        teams_info = "Available teams:\n"
+        valid_teams = []
+        if company_config and company_config.teams:
+            for team in company_config.teams:
+                teams_info += f"- {team.team_id}: {team.name} - {team.description}\n"
+                valid_teams.append(team.team_id)
+        else:
+            # Fallback for legacy support
+            teams_info += "- billing: Payment, refund, invoice issues\n"
+            teams_info += "- tech: Technical problems, bugs, app/website issues\n"
+            teams_info += "- general: General inquiries, how-to questions\n"
+            valid_teams = ["billing", "tech", "general"]
+
+        
         # Build customer history context
         history_context = ""
         if customer_history:
@@ -130,12 +159,9 @@ class RouterAgent(BaseAgent):
             ])
         
         # System prompt for routing decision
-        system_prompt = """You are a customer support routing specialist. Determine which team should handle this ticket.
+        system_prompt = f"""You are a customer support routing specialist. Determine which team should handle this ticket.
 
-Available teams:
-1. billing: Payment, refund, invoice, pricing, subscription issues
-2. tech: Technical problems, bugs, app/website issues, login problems, installation
-3. general: General inquiries, account questions, how-to, feature requests
+{teams_info}
 
 Consider:
 - The ticket category from triage
@@ -144,7 +170,7 @@ Consider:
 - Customer's previous ticket patterns (if they have repeated issues with a specific team)
 
 Return your response as a JSON object with these fields:
-- target_team: One of "billing", "tech", or "general"
+- target_team: Must be one of {valid_teams}
 - confidence: A number between 0.0 and 1.0
 - reasons: An array of strings explaining your decision"""
 
@@ -168,7 +194,7 @@ Which team should handle this ticket?"""
             )
             
             # Validate and normalize the results
-            target_team = self._validate_target_team(result.get("target_team", "general"))
+            target_team = self._validate_target_team(result.get("target_team", "general"), valid_teams)
             confidence = self._validate_confidence(result.get("confidence", 0.8))
             reasons = self._validate_reasons(result.get("reasons", []))
             
@@ -181,14 +207,14 @@ Which team should handle this ticket?"""
         except Exception as e:
             # Fallback to rule-based routing if OpenAI fails
             print(f"OpenAI routing failed, falling back to rule-based: {str(e)}")
-            return self._make_routing_decision_fallback(ticket, triage_result, customer_history)
+            return self._make_routing_decision_fallback(ticket, triage_result, customer_history, valid_teams)
     
-    def _validate_target_team(self, target_team: str) -> str:
+    def _validate_target_team(self, target_team: str, valid_teams: list) -> str:
         """Validate and normalize target_team value"""
         target_team = str(target_team).lower().strip()
-        if target_team in ["billing", "tech", "general"]:
+        if target_team in valid_teams:
             return target_team
-        return "general"
+        return valid_teams[0] if valid_teams else "general" # Default to first team or general
     
     def _validate_confidence(self, confidence: Any) -> float:
         """Validate and normalize confidence value"""
@@ -208,7 +234,8 @@ Which team should handle this ticket?"""
         self,
         ticket: Dict[str, Any],
         triage_result: Dict[str, Any],
-        customer_history: list
+        customer_history: list,
+        valid_teams: list
     ) -> Dict[str, Any]:
         """
         Fallback rule-based routing when OpenAI is unavailable
@@ -217,32 +244,26 @@ Which team should handle this ticket?"""
             ticket: Ticket data
             triage_result: Results from triage agent
             customer_history: Customer's previous tickets
+            valid_teams: List of valid team IDs
             
         Returns:
             Dict with target_team, confidence, and reasons
         """
-        # Start with triage category
-        target_team = triage_result.get("category", "general")
-        reasons = [f"Based on triage category: {target_team} (fallback)"]
-        confidence = 0.8
+        # Simple fallback: try to find a team that matches the category
+        category = triage_result.get("category", "").lower()
+        target_team = "general"
         
-        # Analyze customer history for patterns
-        if customer_history:
-            recent_teams = [t.get("target_team") for t in customer_history[-3:]]
-            if recent_teams.count("billing") >= 2:
-                target_team = "billing"
-                reasons.append("Customer has recent billing-related tickets")
-                confidence = 0.9
-            elif recent_teams.count("tech") >= 2:
-                target_team = "tech"
-                reasons.append("Customer has recent technical issues")
-                confidence = 0.9
-        
-        # Priority-based routing adjustment
-        priority = ticket.get("priority")
-        if priority == "P1":
-            reasons.append("P1 priority - routing to specialized team")
-            confidence = min(confidence + 0.1, 1.0)
+        if category in valid_teams:
+            target_team = category
+        elif "tech" in valid_teams and ("tech" in category or "bug" in category):
+             target_team = "tech"
+        elif "billing" in valid_teams and ("billing" in category or "payment" in category):
+            target_team = "billing"
+        elif "sales" in valid_teams and ("sales" in category or "price" in category):
+            target_team = "sales"
+
+        reasons = [f"Fallback routing based on category: {category} -> {target_team}"]
+        confidence = 0.7
         
         return {
             "target_team": target_team,

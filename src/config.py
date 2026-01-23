@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     
     # OpenAI Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-5-nano"
+    openai_model: str = "gpt-4o-mini"
     
     # API Configuration
     api_host: str = "0.0.0.0"
@@ -24,6 +24,24 @@ class Settings(BaseSettings):
     # Telegram Configuration
     telegram_bot_token: Optional[str] = None
     telegram_polling_timeout: int = 30
+
+    # JWT Configuration (for dashboard authentication)
+    jwt_secret_key: str = "CHANGE_THIS_IN_PRODUCTION"  # Must be set in .env
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 24
+
+    # SMTP Configuration (for escalation emails)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
+    smtp_use_tls: bool = True
+    escalation_default_email: Optional[str] = None
+    escalation_handoff_message: str = (
+        "Sua solicitacao foi encaminhada para um atendente humano. "
+        "Ticket: {ticket_id}. Em breve responderemos por aqui."
+    )
     
     # Bot Business Logic
     bot_require_phone: bool = True

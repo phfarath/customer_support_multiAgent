@@ -75,7 +75,17 @@ class AgentPipeline:
             )
         }
         logger.info(f"Customer history: {len(context.get('customer_history', []))} previous tickets")
-        
+
+        # Get company configuration for multi-tenancy
+        company_id = ticket.get("company_id")
+        company_config = await self._get_company_config(company_id)
+        if company_config:
+            context["company_config"] = company_config.dict()
+            logger.info(f"Company config loaded for company_id: {company_id}")
+        else:
+            logger.warning(f"No company config found for company_id: {company_id}")
+            context["company_config"] = {}
+
         # Execute agents in sequence
         
         # 1. Triage Agent

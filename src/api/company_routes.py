@@ -1,12 +1,13 @@
 """
 FastAPI routes for company configuration management
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from typing import Dict, Any, List
 import logging
 
 from src.models import CompanyConfig, CompanyConfigCreate, CompanyConfigUpdate
 from src.database import get_collection, COLLECTION_COMPANY_CONFIGS
+from src.middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -14,19 +15,33 @@ router = APIRouter(prefix="/api/companies", tags=["companies"])
 
 
 @router.post("/", response_model=CompanyConfig)
-async def create_company_config(config: CompanyConfigCreate) -> CompanyConfig:
+async def create_company_config(
+    config: CompanyConfigCreate,
+    api_key: dict = Depends(verify_api_key)
+) -> CompanyConfig:
     """
     Create a new company configuration
-    
+
+    Requires: X-API-Key header
+    Note: Can only create config for own company
+
     Args:
         config: Company configuration to create
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Created company configuration
     """
+    # Enforce company isolation
+    if config.company_id != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot create config for different company"
+        )
+
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
-        
+
         config_dict = config.model_dump()
         config_dict["created_at"] = None  # Will be set by MongoDB
         
@@ -45,20 +60,34 @@ async def create_company_config(config: CompanyConfigCreate) -> CompanyConfig:
 
 
 @router.get("/{company_id}", response_model=CompanyConfig)
-async def get_company_config(company_id: str) -> CompanyConfig:
+async def get_company_config(
+    company_id: str,
+    api_key: dict = Depends(verify_api_key)
+) -> CompanyConfig:
     """
     Get company configuration by ID
-    
+
+    Requires: X-API-Key header
+    Note: Can only access own company config
+
     Args:
         company_id: Unique company identifier
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Company configuration
     """
+    # Enforce company isolation
+    if company_id != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company config not found: {company_id}"
+        )
+
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
         config = await collection.find_one({"company_id": company_id})
-        
+
         if not config:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -79,20 +108,35 @@ async def get_company_config(company_id: str) -> CompanyConfig:
 
 
 @router.put("/{company_id}", response_model=CompanyConfig)
-async def update_company_config(company_id: str, config: CompanyConfigUpdate) -> CompanyConfig:
+async def update_company_config(
+    company_id: str,
+    config: CompanyConfigUpdate,
+    api_key: dict = Depends(verify_api_key)
+) -> CompanyConfig:
     """
     Update company configuration
-    
+
+    Requires: X-API-Key header
+    Note: Can only update own company config
+
     Args:
         company_id: Unique company identifier
         config: Updated configuration fields
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Updated company configuration
     """
+    # Enforce company isolation
+    if company_id != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company config not found: {company_id}"
+        )
+
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
-        
+
         # Remove None values from update dict
         update_dict = {k: v for k, v in config.model_dump().items() if v is not None}
         
@@ -125,19 +169,33 @@ async def update_company_config(company_id: str, config: CompanyConfigUpdate) ->
 
 
 @router.delete("/{company_id}")
-async def delete_company_config(company_id: str) -> Dict[str, Any]:
+async def delete_company_config(
+    company_id: str,
+    api_key: dict = Depends(verify_api_key)
+) -> Dict[str, Any]:
     """
     Delete company configuration
-    
+
+    Requires: X-API-Key header
+    Note: Can only delete own company config
+
     Args:
         company_id: Unique company identifier
-        
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
         Success message
     """
+    # Enforce company isolation
+    if company_id != api_key["company_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company config not found: {company_id}"
+        )
+
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
-        
+
         result = await collection.delete_one({"company_id": company_id})
         
         if result.deleted_count == 0:
@@ -160,22 +218,31 @@ async def delete_company_config(company_id: str) -> Dict[str, Any]:
 
 
 @router.get("/", response_model=List[CompanyConfig])
-async def list_company_configs() -> List[CompanyConfig]:
+async def list_company_configs(
+    api_key: dict = Depends(verify_api_key)
+) -> List[CompanyConfig]:
     """
-    List all company configurations
-    
+    List company configurations
+
+    Requires: X-API-Key header
+    Note: Returns only own company config (company isolation)
+
+    Args:
+        api_key: Authenticated API key (auto-injected)
+
     Returns:
-        List of all company configurations
+        List of company configurations (only own company)
     """
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
-        cursor = collection.find()
-        
+        # Filter by company_id for isolation
+        cursor = collection.find({"company_id": api_key["company_id"]})
+
         configs = []
         async for config in cursor:
             config["_id"] = str(config.get("_id"))
             configs.append(CompanyConfig(**config))
-        
+
         return configs
         
     except Exception as e:

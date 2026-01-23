@@ -80,11 +80,36 @@ Or using uvicorn:
 uvicorn main:app --reload
 ```
 
+## Authentication
+
+**All API endpoints require authentication via API Key** (except `/docs`, `/health`, and `/telegram/webhook`).
+
+### Creating Your First API Key
+
+```bash
+python scripts/create_initial_api_key.py --company-id your_company_id --name "Initial Key"
+```
+
+This will output an API key like: `sk_AbCdEfGhIjKlMnOpQrStUvWxYz1234567890`
+
+**Important:** Save this key securely. It won't be shown again.
+
+### Using API Keys
+
+Include the `X-API-Key` header in all API requests:
+
+```bash
+curl -H "X-API-Key: sk_YOUR_API_KEY" http://localhost:8000/api/tickets
+```
+
 ## API Endpoints
+
+**Note:** All endpoints below require the `X-API-Key` header.
 
 ### Create Ticket
 ```http
 POST /api/tickets
+X-API-Key: sk_YOUR_API_KEY
 Content-Type: application/json
 
 {
@@ -99,22 +124,90 @@ Content-Type: application/json
 ### Run Pipeline
 ```http
 POST /api/run_pipeline/{ticket_id}
+X-API-Key: sk_YOUR_API_KEY
 ```
 
 ### Get Ticket
 ```http
 GET /api/tickets/{ticket_id}
+X-API-Key: sk_YOUR_API_KEY
 ```
 
 ### Get Audit Trail
 ```http
 GET /api/tickets/{ticket_id}/audit
+X-API-Key: sk_YOUR_API_KEY
 ```
 
 ### List Tickets
 ```http
 GET /api/tickets?status=open&priority=P1&limit=50
+X-API-Key: sk_YOUR_API_KEY
 ```
+
+### API Key Management
+
+**List API Keys:**
+```http
+GET /api/keys
+X-API-Key: sk_YOUR_API_KEY
+```
+
+**Create New API Key:**
+```http
+POST /api/keys
+X-API-Key: sk_YOUR_API_KEY
+Content-Type: application/json
+
+{
+  "company_id": "your_company_id",
+  "name": "Production Key",
+  "permissions": ["read", "write"]
+}
+```
+
+**Revoke API Key:**
+```http
+DELETE /api/keys/{key_id}
+X-API-Key: sk_YOUR_API_KEY
+```
+
+## Dashboard Authentication
+
+The Streamlit Dashboard requires authentication with JWT tokens.
+
+### Creating Dashboard Users
+
+Create your first user:
+```bash
+python scripts/create_dashboard_user.py \
+    --email admin@company.com \
+    --password SecurePassword123! \
+    --company-id your_company_id \
+    --full-name "Admin User" \
+    --role admin
+```
+
+**Roles:**
+- `admin`: Full access (can modify bot config, products, respond to tickets)
+- `operator`: Can respond to tickets and view configs (default)
+
+### Accessing the Dashboard
+
+1. Start the dashboard:
+```bash
+streamlit run src/dashboard/app.py
+```
+
+2. Open http://localhost:8501
+
+3. Login with email and password
+
+**Features:**
+- JWT-based authentication (24h token expiration)
+- Company isolation (users only see their company's data)
+- Secure password hashing with bcrypt
+- Session management with automatic token verification
 
 ## Loading Test Data
 

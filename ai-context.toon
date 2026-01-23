@@ -1,0 +1,237 @@
+# AI Context - Customer Support MultiAgent
+# TOON (Token Oriented Object Notation)
+# Formato estruturado para parsing rápido por agentes de IA
+# Última atualização: 2026-01-22
+
+project[1]
+  name,type,status,progress,current_branch,current_sprint,last_feature
+  Customer Support MultiAgent,AI-powered customer support system,production-ready,95%,feat/escalating_to_human,Semana 1: Critical Bugs + Security,JWT Dashboard Auth + API Key Auth
+
+entry_points[3]
+  name,file,command,port,description
+  API REST,main.py,python main.py,8000,FastAPI application server
+  Telegram Bot,run_telegram_bot.py,python run_telegram_bot.py,N/A,Telegram bot polling mode
+  Dashboard,src/dashboard/app.py,streamlit run src/dashboard/app.py,8501,Streamlit admin dashboard
+
+agents[4]
+  name,file,responsibility,input,output
+  TriageAgent,src/agents/triage.py,Classificar ticket,Ticket + mensagem inicial,priority/category/sentiment
+  RouterAgent,src/agents/router.py,Rotear para equipe,Ticket triado + company config,current_team
+  ResolverAgent,src/agents/resolver.py,Gerar resposta,Ticket + histórico + RAG,response + confidence
+  EscalatorAgent,src/agents/escalator.py,Decidir escalação,Ticket + resultados agentes,should_escalate + reason
+
+mongodb_collections[10]
+  name,description,key_fields,indexes
+  tickets,Support tickets,ticket_id|company_id|customer_id|status|priority|category|escalated,ticket_id|company_id+status|customer_id
+  interactions,Message history,ticket_id|sender|message|timestamp|channel,ticket_id+timestamp
+  customers,Customer records,customer_id|company_id|phone|telegram_id,customer_id|company_id+phone
+  bot_sessions,Telegram session state,telegram_id|company_id|state|customer_id,telegram_id|company_id+telegram_id
+  company_configs,Multi-tenancy configs,company_id|company_name|policies|products|teams,company_id
+  agent_states,Agent execution states,ticket_id|agent_name|state|timestamp,ticket_id+agent_name
+  routing_decisions,Routing history,ticket_id|from_team|to_team|reason,ticket_id
+  audit_logs,Complete audit trail,ticket_id|agent_name|action|details|timestamp,ticket_id+timestamp
+  users,Dashboard users (JWT auth),user_id|email|password_hash|company_id|role,email|company_id
+  api_keys,API authentication,key_id|api_key|company_id|active|permissions,api_key|company_id
+
+tech_stack[18]
+  category,technology,version,purpose
+  Backend,FastAPI,0.104.1,REST API framework
+  Backend,Uvicorn,0.24.0,ASGI server
+  Backend,Pydantic,2.5.0,Data validation
+  Database,MongoDB,latest,Primary database
+  Database,Motor,3.3.2,MongoDB async driver
+  Database,ChromaDB,latest,Vector database for RAG
+  AI,OpenAI API,1.3.7,GPT models
+  AI,LangChain,latest,Text splitting and embeddings
+  Integration,Python Telegram Bot,latest,Telegram Bot API
+  Integration,SMTP,built-in,Email notifications
+  UI,Streamlit,latest,Admin dashboard
+  Testing,Pytest,7.4.3,Test framework
+  Security,PyJWT,2.8.0,JWT token authentication
+  Security,bcrypt,4.0.1,Password hashing
+  Security,passlib,1.7.4,Password validation
+  Utilities,python-dotenv,latest,Environment config
+  Utilities,httpx,0.25.2,HTTP async client
+  Utilities,tenacity,8.2.3,Retry logic
+
+features_implemented[16]
+  feature,status,files_involved
+  Pipeline 4 agentes,completed,src/utils/pipeline.py|src/agents/*.py
+  OpenAI integration,completed,src/utils/openai_client.py|src/agents/base.py
+  MongoDB transactions,completed,src/database/transactions.py
+  Optimistic locking,completed,src/database/operations.py
+  Audit trail,completed,All agents + src/database/operations.py
+  Multi-tenancy,completed,src/models/company_config.py|src/utils/pipeline.py
+  Telegram webhook,completed,src/api/telegram_routes.py
+  Telegram polling,completed,src/bots/telegram_bot.py|run_telegram_bot.py
+  Phone registration,completed,src/bots/telegram_bot.py
+  RAG ChromaDB,completed,src/rag/knowledge_base.py|src/agents/resolver.py
+  Escalation system,completed,src/agents/escalator.py|src/utils/email_sender.py
+  Streamlit dashboard,completed,src/dashboard/app.py
+  E2E test suite,completed,tests/scenarios/*.py
+  API Key authentication,completed,src/middleware/auth.py|src/models/api_key.py|src/api/api_key_routes.py
+  JWT Dashboard auth,completed,src/models/user.py|src/utils/jwt_handler.py|src/dashboard/app.py
+  Company isolation,completed,All API endpoints + Dashboard components
+
+critical_bugs[1]
+  bug_id,file,line,severity,impact,fix_effort,status
+  BUG-002,src/bots/telegram_bot.py,491,P1-high,Business hours sempre True,2h,pending
+
+bugs_fixed[3]
+  bug_id,fix_date,description
+  BUG-001,2026-01-20,Pipeline agora injeta company_config
+  BUG-003,2026-01-20,Requirements.txt completo
+  BUG-004,2026-01-20,OpenAI model corrigido para gpt-4o-mini
+
+features_pending[9]
+  feature,version,priority,estimated_effort,dependencies,progress
+  Security final items,v1.0,P0-blocker,6h,none,60% (auth done|sanitization+rate-limit+cors pending)
+  Deployment AWS ECS,v1.0,P1-high,27h,Security complete,0%
+  Testing suite 70%,v1.0,P1-high,37h,Deployment,0%
+  WhatsApp support,v1.1,high,2 weeks,v1.0 launch,0%
+  Email inbound,v1.1,high,2 weeks,v1.0 launch,0%
+  Dashboard metrics,v1.2,medium,1 week,v1.0 launch,0%
+  Customer feedback,v1.4,medium,1 week,v1.2,0%
+  Multi-language,v2.0,low,2 weeks,v1.5,0%
+  Voice support,v2.0,low,3 weeks,v1.5,0%
+
+scripts_available[5]
+  script,file,purpose,usage
+  Create API Key,scripts/create_initial_api_key.py,Bootstrap first API key,python scripts/create_initial_api_key.py --company-id X --name Y
+  Create Dashboard User,scripts/create_dashboard_user.py,Create dashboard user with JWT auth,python scripts/create_dashboard_user.py --email X --password Y --company-id Z --full-name N
+  Load Test Data,scripts/load_test_data.py,Load sample tickets,python scripts/load_test_data.py
+  Ingest Knowledge,scripts/ingest_knowledge.py,Ingest documents to RAG,python scripts/ingest_knowledge.py --company-id X --file Y
+  Run Telegram Bot,run_telegram_bot.py,Start Telegram bot (polling),python run_telegram_bot.py
+
+design_patterns[10]
+  pattern,location,purpose
+  Multi-Agent Pipeline,src/utils/pipeline.py,Sequential agent execution
+  Repository Pattern,src/database/operations.py,Abstract DB operations
+  Adapter Pattern,src/adapters/*.py,Channel-specific logic
+  Strategy Pattern,src/agents/base.py,Agent interface
+  Singleton Pattern,src/utils/openai_client.py|src/rag/knowledge_base.py,Single instance management
+  Factory Pattern,src/database/operations.py,find_or_create_* functions
+  Transaction Script,src/database/transactions.py,@with_transaction decorator
+  Optimistic Locking,src/database/operations.py,lock_version field
+  Event Sourcing,src/database/operations.py,audit_logs collection
+  Multi-Tenancy,src/models/company_config.py,company_id isolation
+
+key_files[12]
+  purpose,file,read_priority,description
+  Entry point,src/api/ingest_routes.py,1,Channel-agnostic message ingestion
+  Orchestration,src/utils/pipeline.py,1,Agent pipeline execution
+  Agent interface,src/agents/base.py,2,BaseAgent abstract class
+  Data model,src/models/ticket.py,2,Core ticket model
+  Multi-tenancy,src/models/company_config.py,2,Company configuration
+  Triage logic,src/agents/triage.py,3,Priority/category/sentiment
+  Router logic,src/agents/router.py,3,Team routing
+  Resolver logic,src/agents/resolver.py,3,Response generation with RAG
+  Escalator logic,src/agents/escalator.py,3,Escalation decision
+  RAG system,src/rag/knowledge_base.py,3,ChromaDB wrapper
+  Telegram bot,src/bots/telegram_bot.py,4,Bot logic and handlers
+  DB operations,src/database/operations.py,4,CRUD helpers
+
+api_endpoints[7]
+  method,path,purpose,handler_file
+  POST,/api/ingest-message,Ingest message from any channel,src/api/ingest_routes.py
+  POST,/api/telegram/webhook,Telegram webhook,src/api/telegram_routes.py
+  GET,/api/tickets/{ticket_id},Get ticket details,src/api/ticket_routes.py
+  GET,/api/tickets,List tickets with filters,src/api/ticket_routes.py
+  POST,/api/companies,Create company config,src/api/company_routes.py
+  GET,/api/companies/{company_id},Get company config,src/api/company_routes.py
+  GET,/api/human-handoff/escalated,List escalated tickets,src/api/human_handoff_routes.py
+
+environment_variables[12]
+  variable,required,example,description
+  MONGODB_URI,yes,mongodb://localhost:27017,MongoDB connection string
+  MONGODB_DATABASE,yes,customer_support,Database name
+  OPENAI_API_KEY,yes,sk-...,OpenAI API key
+  OPENAI_MODEL,no,gpt-5-nano,OpenAI model to use
+  TELEGRAM_BOT_TOKEN,yes,123456:ABC-DEF,Telegram bot token
+  TELEGRAM_WEBHOOK_URL,no,https://domain.com/api/telegram/webhook,Webhook URL for production
+  SMTP_HOST,yes,smtp.gmail.com,SMTP server
+  SMTP_PORT,yes,587,SMTP port
+  SMTP_USER,yes,email@gmail.com,SMTP username
+  SMTP_PASSWORD,yes,app-password,SMTP password
+  API_PORT,no,8000,API server port
+  CHROMA_PERSIST_DIRECTORY,no,./chroma_db,ChromaDB storage path
+
+conventions[8]
+  category,rule,example
+  Naming Classes,PascalCase,TriageAgent|CompanyConfig
+  Naming Functions,snake_case,find_or_create_ticket|save_interaction
+  Naming Constants,UPPER_CASE,COLLECTION_TICKETS|DEFAULT_MODEL
+  Type Hints,Always required,async def func(param: str) -> Dict[str, Any]
+  Async/Await,Use for all I/O,await tickets.find_one(...)
+  Error Handling,Try-catch with logging,logger.error(...\, exc_info=True)
+  Docstrings,Required for public functions,Google style docstrings
+  Transactions,Use for multi-collection ops,@with_transaction decorator
+
+test_scenarios[4]
+  scenario,file,description,assertions
+  Routing,tests/scenarios/test_routing.py,Tests correct team routing,Billing -> billing team|Tech -> tech team
+  Sales,tests/scenarios/test_sales.py,Tests sales flow,Product questions -> sales team
+  RAG,tests/scenarios/test_rag.py,Tests knowledge base,KB queries return relevant docs
+  Escalation,tests/scenarios/test_escalation.py,Tests escalation logic,High priority + low confidence -> escalate
+
+architectural_decisions[5]
+  decision,rationale,alternatives_considered
+  4 separate agents,Separation of concerns|testability|maintainability,Single monolithic agent|2 agents (classify + respond)
+  ChromaDB,Local-first|lightweight|Python-native,Pinecone|Weaviate|FAISS
+  Motor (async MongoDB),Performance with FastAPI|non-blocking I/O,PyMongo (sync)|MongoEngine (ORM)
+  Streamlit dashboard,Rapid prototyping|Python-only|good UX,React|Vue|Django Admin
+  Multi-tenancy,SaaS-ready|cost-effective|data isolation,Separate DB per company|separate instances
+
+troubleshooting[5]
+  problem,check,solution
+  Pipeline não executa,MongoDB connection|OPENAI_API_KEY,Verify .env vars|check logs
+  Telegram bot não responde,TELEGRAM_BOT_TOKEN|webhook config,Use polling mode for dev|verify webhook
+  RAG sem resultados,ChromaDB directory|documents ingested,Run scripts/ingest_knowledge.py
+  Escalation sem email,SMTP config|escalation_config,Verify .env SMTP vars|check company config
+  Tests failing,MongoDB test DB|OpenAI key,Setup test DB|use mocks for OpenAI
+
+code_navigation[6]
+  task,primary_file,related_files
+  Understand message flow,src/api/ingest_routes.py,src/utils/pipeline.py|src/agents/*.py
+  Modify agent logic,src/agents/{agent}.py,src/utils/pipeline.py|src/agents/base.py
+  Add new channel,src/adapters/{channel}_adapter.py,src/api/{channel}_routes.py|src/models/ticket.py
+  Change RAG logic,src/rag/knowledge_base.py,src/agents/resolver.py|scripts/ingest_knowledge.py
+  Update company config,src/models/company_config.py,src/utils/pipeline.py|src/api/company_routes.py
+  Modify dashboard,src/dashboard/app.py,src/dashboard/pages/*.py
+
+changelog[2]
+  version,date,changes
+  0.9,2026-01-20,Sistema escalação completo|Email notifications|Stop AI quando escalado|Dashboard Streamlit
+  0.8,2025-12,Pipeline 4 agentes|Telegram|RAG|Multi-tenancy|E2E tests
+
+next_steps[16]
+  week,day,task,priority,effort,deliverable
+  1,1-2,Fix Bug #1: company_config injection,P0,30min,Pipeline working
+  1,1-2,Fix Bug #3: Update requirements.txt,P0,30min,App runnable
+  1,1-2,Fix Bug #4: OpenAI model name,P0,5min,API calls work
+  1,1-2,Fix Bug #2: Business hours check,P1,2h,Feature functional
+  1,1-2,Call ensure_indexes() on startup,P1,15min,DB optimized
+  1,1-2,Add HTTP client timeouts,P1,1h,No hanging requests
+  1,3-5,Rotate exposed credentials,P0,30min,Security restored
+  1,3-5,API key authentication,P0,2h,Endpoints protected
+  1,3-5,JWT for dashboard,P0,4h,Dashboard secured
+  1,3-5,Input sanitization,P1,3h,XSS prevented
+  1,3-5,Rate limiting API,P1,2h,DoS mitigated
+  2,1-4,Docker + docker-compose,P1,5h,Containerized
+  2,1-4,AWS ECS deployment,P1,6h,Production deploy
+  2,1-4,Sentry integration,P1,2h,Error tracking
+  3,1-5,Pytest suite complete,P1,15h,70% coverage
+  3,1-5,DEPLOYMENT.md + RUNBOOK.md,P1,5h,Docs complete
+
+metadata[1]
+  key,value
+  last_updated,2026-01-20
+  document_version,1.1
+  format,TOON (Token Oriented Object Notation)
+  maintainer,Aethera Labs Team
+  related_docs,ARCHITECTURE.md|AI_INSTRUCTIONS.md|Plan:swift-herding-lollipop.md
+  roadmap_approved,true
+  target_mvp_date,2026-02-10 (3 weeks)
+  deployment_target,AWS ECS
+  secrets_strategy,encrypted .env
+  next_channels,WhatsApp + Email (parallel)

@@ -123,6 +123,10 @@ Configurações específicas de cada empresa (Multi-tenancy), como, mensagens do
 | `bot_outside_hours_message` | String | Não | Mensagem para fora do horário comercial |
 | `custom_instructions` | String | Não | Instruções personalizadas para os agentes IA |
 | `products` | Array | Não | Lista de produtos/serviços |
+| `teams` | Array[Object] | Não | Definição dos times/departamentos e suas responsabilidades |
+| `knowledge_base` | Object | Não | Configuração da base de conhecimento (RAG) |
+| `integrations` | Object | Não | Credenciais de integrações (Telegram, WhatsApp) |
+| `escalation_contact` | String | Não | ID de contato (chat_id) para escalonamento humano |
 | `created_at` | DateTime | Sim | Data de criação |
 | `updated_at` | DateTime | Sim | Data de atualização |
 
