@@ -25,6 +25,7 @@ from src.models.customer import Customer
 from src.models.company_config import CompanyConfig
 from src.api.ingest_routes import ingest_message
 from src.models import IngestMessageRequest, IngestChannel
+from src.utils.business_hours import check_business_hours
 
 logger = logging.getLogger(__name__)
 
@@ -471,11 +472,11 @@ class TelegramBot:
         return f"Olá {first_name or ''}, em que posso ajudar?"
 
     async def check_business_hours(self, company_id: str) -> tuple[bool, str, str]:
-        """Verifica horário. Retorna (is_open, hours_str, outside_message)"""
+        """Verifica horário usando business_hours.py. Retorna (is_open, hours_str, outside_message)"""
         config = await get_collection(COLLECTION_COMPANY_CONFIGS).find_one({"company_id": company_id})
         
         if not config:
-            return True, "", "" # Se não tem config, assume aberto
+            return True, "", ""  # Se não tem config, assume aberto
             
         hours = config.get("business_hours")
         outside_msg = config.get("bot_outside_hours_message") or DEFAULT_MESSAGES["outside_hours"]
@@ -483,12 +484,10 @@ class TelegramBot:
         if not hours:
             return True, "", outside_msg
             
-        # Lógica simplificada de verificação de horário (Assumindo formato "Seg-Sex: 09:00-18:00")
-        # Para MVP, vamos assumir aberto sempre se o parse for complexo, 
-        # mas aqui vou implementar um check básico se estiver no formato padrão
-        # (Implementação real requer parser robusto de dias da semana)
+        # Usar módulo business_hours.py
+        is_open, hours_str = check_business_hours(hours)
         
-        return True, str(hours), outside_msg # Placeholder: Sempre aberto no MVP para evitar bloqueio indevido
+        return is_open, hours_str, outside_msg
 
     async def process_message(self, chat_id: int, text: str, session: BotSession):
         """Processa mensagem através do pipeline"""
