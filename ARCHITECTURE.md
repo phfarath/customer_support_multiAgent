@@ -718,24 +718,7 @@ Ticket: [subject + description]
 
 ## ⚠️ Known Issues (Bugs Ativos)
 
-### Bloqueadores de MVP
-1. **Pipeline não injeta company_config** (`src/utils/pipeline.py:69-76`)
-   - Multi-tenancy não funciona completamente
-   - Produtos, policies, RAG personalizado afetados
-
-2. **Dependencies faltando** (`requirements.txt`)
-   - App não roda em ambiente limpo
-   - Missing: chromadb, langchain-*, streamlit, python-telegram-bot
-
-3. **Modelo OpenAI inválido** (`.env.example`)
-   - `gpt-5-nano` não existe
-   - Usar `gpt-4o-mini` ou `gpt-3.5-turbo`
-
-### Não-bloqueadores
-4. **Business hours sempre True** (`src/bots/telegram_bot.py:491`)
-5. **CORS `allow_origins=["*"]`** (security issue - pendente fix)
-6. **Input sanitization** (pendente implementação)
-7. **Rate limiting na API** (pendente implementação)
+(Nenhum por enquanto... registre aqui caso tenha)
 
 ---
 
@@ -843,20 +826,20 @@ Ticket: [subject + description]
 **Objetivo**: MVP funcional e seguro (Fase 1+2)
 
 #### Dias 1-2: Bugs Críticos
-- [ ] Fix Bug #1: company_config no pipeline (30min)
-- [ ] Fix Bug #3: Atualizar requirements.txt (30min)
-- [ ] Fix Bug #4: Corrigir modelo OpenAI (5min)
+- [X] Fix Bug #1: company_config no pipeline (30min)
+- [X] Fix Bug #3: Atualizar requirements.txt (30min)
+- [X] Fix Bug #4: Corrigir modelo OpenAI (5min)
 - [ ] Fix Bug #2: Implementar business hours (2h)
 - [ ] Chamar ensure_indexes() no startup (15min)
 - [ ] Adicionar timeouts em HTTP clients (1h)
 
 #### Dias 3-5: Security
-- [ ] Rotacionar credenciais expostas (URGENTE)
-- [ ] Implementar API key authentication (2h)
-- [ ] JWT para dashboard (4h)
-- [ ] Input sanitization (3h)
-- [ ] Rate limiting API com slowapi (2h)
-- [ ] Fix CORS policy (30min)
+- [X] Rotacionar credenciais expostas (URGENTE)
+- [X] Implementar API key authentication (2h)
+- [X] JWT para dashboard (4h)
+- [X] Input sanitization (3h)
+- [X] Rate limiting API com slowapi (2h)
+- [X] Fix CORS policy (30min)
 
 ### Semana 2-3: DEPLOYMENT + TESTING
 **Objetivo**: Production-ready (Fase 3+4)

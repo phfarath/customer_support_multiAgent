@@ -16,70 +16,15 @@ Antes de fazer qualquer modificação:
 
 ---
 
-## 🎯 Contexto Atual do Projeto
+## 🐛 Bugs Ativos
 
-### Status Atual
-- **Branch:** `feat/security-authentication` ✅ CONCLUÍDA
-- **Última Feature:** Security Hardening Complete (Sanitization + Rate Limiting + CORS) ✅
-- **Sprint Atual:** **SEMANA 1 - FIX BUGS CRÍTICOS + SECURITY** ✅ COMPLETO
-- **Estado:** 100% completo - Security production-ready ✅
+Registre bugs encontrados aqui. Quando um bug for corrigido, mova para a seção "Bugs Corrigidos".
 
-### 🚨 BUGS CRÍTICOS ATIVOS
+### Bugs Ativos
+- (Nenhum bug ativo no momento)
 
-#### NUNCA faça essas coisas (causam bugs ativos):
-
-1. **NUNCA confie no business hours check**
-   - `src/bots/telegram_bot.py:491` sempre retorna True
-   - Feature não funciona
-   - Fix pendente: implementar parsing correto
-
-#### ✅ BUGS CORRIGIDOS (Jan 22, 2026)
-
-1. **✅ company_config agora está disponível no context**
-   - FIXED: `src/utils/pipeline.py` agora injeta company_config
-   - Context sempre inclui `company_config` (dict vazio se não encontrado)
-   - Todos os agentes têm acesso a produtos, policies e teams
-
-2. **✅ Modelo OpenAI válido configurado**
-   - FIXED: `src/config.py` usa `gpt-4o-mini` (modelo válido)
-   - Todas as chamadas OpenAI funcionam corretamente
-
-3. **✅ Dependencies completas**
-   - FIXED: `requirements.txt` agora inclui todas as dependências
-   - chromadb, langchain-*, streamlit, python-telegram-bot instalados
-
-### O Que Está Funcionando
-✅ Pipeline completo (4 agentes) com fallbacks
-✅ Telegram bot (webhook + polling) 70%
-✅ RAG com ChromaDB 100%
-✅ Multi-tenancy (company_config + company isolation)
-✅ Escalação automática com emails
-✅ Dashboard Streamlit 60%
-✅ E2E tests (estrutura existe)
-✅ **API Key Authentication (20 endpoints protegidos)**
-
-### Sprint Atual: Semana 1 (Dias 1-5)
-
-#### Dias 1-2: CRITICAL BUGS
-- [x] Fix Bug #1: company_config no pipeline ✅ DONE
-- [x] Fix Bug #3: requirements.txt completo ✅ DONE
-- [x] Fix Bug #4: modelo OpenAI correto ✅ DONE
-- [ ] Fix Bug #2: business hours check
-- [ ] ensure_indexes() no startup
-- [ ] Timeouts em HTTP clients
-
-#### Dias 3-5: SECURITY ✅ COMPLETE
-- [X] Rotacionar credenciais expostas ✅ DONE (23/01/2026)
-- [x] API key authentication ✅ DONE (22/01/2026)
-- [x] JWT para dashboard ✅ DONE (22/01/2026)
-- [x] Input sanitization ✅ DONE (23/01/2026)
-- [x] Rate limiting API ✅ DONE (23/01/2026)
-- [x] Fix CORS policy ✅ DONE (23/01/2026)
-
-### Próximas Sprints
-- **Semana 2-3:** Deployment (AWS ECS) + Testing
-- **Mês 2:** WhatsApp + Email Inbound (V1.1)
-- **Mês 2-3:** Dashboard completo (V1.2)
+### Bugs Corrigidos
+- [ ] 2026-01-23: Descrição do bug corrigido
 
 ---
 
@@ -1475,6 +1420,96 @@ if page == "Métricas":
 
 ---
 
+## 📝 Documentando Novas Features
+
+Quando implementar uma nova feature, documente-a seguindo este padrão:
+
+### Criar Documento de Implementação
+
+1. **Criar arquivo** em `docs/implementations/`:
+   - Nome: `YYYY-MM-DD_HH-MM_<feature-name>.md`
+   - Exemplo: `2026-01-23_18-30_api-key-authentication.md`
+
+2. **Estrutura do documento:**
+   - Título e descrição da feature
+   - Status (✅ Implementado / 🚧 Em desenvolvimento)
+   - Como funciona
+   - Exemplos de uso
+   - Arquivos relacionados
+   - Endpoints afetados
+   - Boas práticas
+
+3. **Atualizar índice:**
+   - Adicionar entrada em `docs/implementations/README.md`
+
+### Exemplo
+
+```bash
+# 1. Criar documento
+cat > docs/implementations/2026-01-24_10-30_whatsapp-support.md << 'EOF'
+# WhatsApp Support Implementation
+
+**Status:** 🚧 Em desenvolvimento
+**Data:** 2026-01-24
+
+## Como Funciona
+...
+EOF
+
+# 2. Atualizar índice
+echo "- WhatsApp Support - docs/implementations/2026-01-24_10-30_whatsapp-support.md" >> docs/implementations/README.md
+```
+
+### Template para Novas Features
+
+Use este template ao criar novos documentos de implementação:
+
+```markdown
+# <Feature Name> Implementation
+
+**Status:** ✅ Implementado / 🚧 Em desenvolvimento
+**Data:** YYYY-MM-DD
+**Versão:** v1.0
+
+## Descrição
+
+Breve descrição da feature implementada.
+
+## Como Funciona
+
+Explicação detalhada de como a feature funciona.
+
+## Arquivos Relacionados
+
+- **Modelo:** `src/models/<model>.py`
+- **Routes:** `src/api/<routes>.py`
+- **Utils:** `src/utils/<utils>.py`
+
+## Endpoints Afetados
+
+- `METHOD /path` - Descrição
+
+## Exemplos de Uso
+
+```bash
+# Exemplo de uso
+curl -X POST http://localhost:8000/api/endpoint \
+  -H "X-API-Key: sk_..."
+```
+
+## Boas Práticas
+
+**DO:**
+- ✅ Prática recomendada 1
+- ✅ Prática recomendada 2
+
+**DON'T:**
+- ❌ Coisa a evitar 1
+- ❌ Coisa a evitar 2
+```
+
+---
+
 ## 🔒 Padrões Obrigatórios
 
 ### Security Patterns (CRÍTICO)
@@ -1931,6 +1966,7 @@ except Exception as e:
 - `docs/MULTI_TENANCY.md` - Como multi-tenancy funciona
 - `docs/TELEGRAM_SETUP.md` - Setup Telegram bot
 - `docs/mongodb_collections.md` - Schema detalhado
+- `docs/implementations/` - Implementações detalhadas de features (API Key Auth, JWT Dashboard, Input Sanitization, Rate Limiting, CORS)
 
 ### External Docs
 
