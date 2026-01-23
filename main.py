@@ -13,6 +13,7 @@ from src.config import settings
 from src.database import ensure_indexes, close_connection
 from src.api import router, ingest_router, telegram_router, company_router, human_router
 from src.api.api_key_routes import router as api_key_router
+from src.api.health_routes import router as health_router
 from src.utils.monitoring import init_sentry, flush_events
 
 # Configure logging
@@ -86,6 +87,7 @@ app.add_middleware(
 )
 
 # Include routes
+app.include_router(health_router)  # Health checks (no auth required)
 app.include_router(router)
 app.include_router(ingest_router)
 app.include_router(telegram_router)
