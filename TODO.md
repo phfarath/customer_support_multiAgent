@@ -9,7 +9,7 @@
 
 | Task | File(s) | Status | Priority | Est. |
 |------|---------|--------|----------|------|
-| Dockerfile + docker-compose | `Dockerfile`, `docker-compose.yml` | ⏳ Pending | HIGH | 5h |
+| Dockerfile + docker-compose | `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docs/DOCKER.md` | ✅ Completed | HIGH | 5h |
 | AWS ECS deployment config | `scripts/deploy_*.py` | ⏳ Pending | HIGH | 6h |
 | Sentry integration | `src/utils/monitoring.py` | ⏳ Pending | MEDIUM | 2h |
 | Health checks deep | `src/api/health_routes.py` | ⏳ Pending | MEDIUM | 2h |
