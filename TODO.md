@@ -33,9 +33,9 @@
 
 | Task | File(s) | Status | Priority | Est. |
 |------|---------|--------|----------|------|
-| DEPLOYMENT.md | `docs/DEPLOYMENT.md` | ⏳ Pending | HIGH | 3h |
-| RUNBOOK.md | `docs/RUNBOOK.md` | ⏳ Pending | HIGH | 2h |
-| Fix Bug #2: Business hours | `src/utils/business_hours.py` | ⏳ Pending | MEDIUM | 2h |
+| DEPLOYMENT.md | `docs/DEPLOYMENT.md` | ✅ Completed | HIGH | 3h |
+| RUNBOOK.md | `docs/RUNBOOK.md` | ✅ Completed | HIGH | 2h |
+| Fix Bug #2: Business hours | `src/utils/business_hours.py` | ✅ Completed | MEDIUM | 2h |
 | Timeouts HTTP clients | `src/utils/http_client.py` | ⏳ Pending | MEDIUM | 1h |
 
 ---
