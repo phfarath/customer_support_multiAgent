@@ -21,11 +21,11 @@
 
 | Task | File(s) | Status | Priority | Est. |
 |------|---------|--------|----------|------|
-| Pytest suite - agents | `tests/unit/test_agents.py` | ⏳ Pending | HIGH | 4h |
+| Pytest suite - agents | `tests/unit/test_agents.py` | ✅ Completed | HIGH | 4h |
 | Pytest suite - routes | `tests/unit/test_routes.py` | ⏳ Pending | HIGH | 4h |
 | Pytest suite - pipeline | `tests/unit/test_pipeline.py` | ⏳ Pending | HIGH | 3h |
 | E2E integration tests | `tests/integration/*` | ⏳ Pending | HIGH | 4h |
-| Coverage report setup | `pytest.ini`, `pyproject.toml` | ⏳ Pending | MEDIUM | 1h |
+| Coverage report setup | `pytest.ini`, `pyproject.toml` | ✅ Completed | MEDIUM | 1h |
 
 ---
 
