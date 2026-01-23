@@ -13,7 +13,7 @@
 | AWS ECS deployment config | `scripts/deploy_ecs.py`, `scripts/deploy_setup_*.py`, `docs/DEPLOYMENT.md` | ✅ Completed | HIGH | 6h |
 | Sentry integration | `src/utils/monitoring.py`, `main.py`, `docs/MONITORING.md` | ✅ Completed | MEDIUM | 2h |
 | Health checks deep | `src/api/health_routes.py`, `main.py`, `docs/HEALTH_CHECKS.md` | ✅ Completed | MEDIUM | 2h |
-| Circuit breaker OpenAI | `src/utils/circuit_breaker.py` | ⏳ Pending | MEDIUM | 2h |
+| Circuit breaker OpenAI | `src/utils/circuit_breaker.py`, `docs/CIRCUIT_BREAKER.md` | ✅ Completed | MEDIUM | 2h |
 
 ---
 
