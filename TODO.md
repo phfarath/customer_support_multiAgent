@@ -11,7 +11,7 @@
 |------|---------|--------|----------|------|
 | Dockerfile + docker-compose | `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docs/DOCKER.md` | ✅ Completed | HIGH | 5h |
 | AWS ECS deployment config | `scripts/deploy_ecs.py`, `scripts/deploy_setup_*.py`, `docs/DEPLOYMENT.md` | ✅ Completed | HIGH | 6h |
-| Sentry integration | `src/utils/monitoring.py` | ⏳ Pending | MEDIUM | 2h |
+| Sentry integration | `src/utils/monitoring.py`, `main.py`, `docs/MONITORING.md` | ✅ Completed | MEDIUM | 2h |
 | Health checks deep | `src/api/health_routes.py` | ⏳ Pending | MEDIUM | 2h |
 | Circuit breaker OpenAI | `src/utils/circuit_breaker.py` | ⏳ Pending | MEDIUM | 2h |
 
