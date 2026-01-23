@@ -36,7 +36,7 @@
 | DEPLOYMENT.md | `docs/DEPLOYMENT.md` | ✅ Completed | HIGH | 3h |
 | RUNBOOK.md | `docs/RUNBOOK.md` | ✅ Completed | HIGH | 2h |
 | Fix Bug #2: Business hours | `src/utils/business_hours.py` | ✅ Completed | MEDIUM | 2h |
-| Timeouts HTTP clients | `src/utils/http_client.py` | ⏳ Pending | MEDIUM | 1h |
+| Timeouts HTTP clients | `src/utils/http_client.py` | ✅ Completed | MEDIUM | 1h |
 
 ---
 
