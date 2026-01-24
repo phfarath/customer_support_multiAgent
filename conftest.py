@@ -11,17 +11,51 @@ class FakeCollection:
         self.inserted = []
         self.updated = []
         self.find_one_result = None
+        self.find_one_results = []
+        self.find_results = []
 
     async def insert_one(self, document: Dict[str, Any], *args, **kwargs):
+        class _InsertResult:
+            def __init__(self, inserted_id):
+                self.inserted_id = inserted_id
+
         self.inserted.append({"document": document, "args": args, "kwargs": kwargs})
-        return {"inserted_id": document.get("_id")}
+        inserted_id = document.get("_id", "fake_id")
+        return _InsertResult(inserted_id)
 
     async def update_one(self, *args, **kwargs):
         self.updated.append({"args": args, "kwargs": kwargs})
         return {"matched_count": 1, "modified_count": 1}
 
     async def find_one(self, *args, **kwargs):
+        if self.find_one_results:
+            return self.find_one_results.pop(0)
         return self.find_one_result
+
+    def find(self, *args, **kwargs):
+        return FakeCursor(list(self.find_results))
+
+
+class FakeCursor:
+    def __init__(self, items):
+        self.items = list(items)
+
+    def sort(self, *args, **kwargs):
+        return self
+
+    def limit(self, limit_count: int):
+        self.items = self.items[:limit_count]
+        return self
+
+    def __aiter__(self):
+        self._iter = iter(self.items)
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iter)
+        except StopIteration:
+            raise StopAsyncIteration
 
 
 class FakeOpenAIClient:
@@ -71,6 +105,9 @@ def fake_db(monkeypatch):
     monkeypatch.setattr("src.agents.router_agent.get_collection", _get_collection)
     monkeypatch.setattr("src.agents.resolver_agent.get_collection", _get_collection)
     monkeypatch.setattr("src.agents.escalator_agent.get_collection", _get_collection)
+    monkeypatch.setattr("src.api.routes.get_collection", _get_collection)
+    monkeypatch.setattr("src.api.ingest_routes.get_collection", _get_collection)
+    monkeypatch.setattr("src.database.ticket_operations.get_collection", _get_collection)
 
     return collections
 
