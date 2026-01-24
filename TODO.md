@@ -9,11 +9,11 @@
 
 | Task | File(s) | Status | Priority | Est. |
 |------|---------|--------|----------|------|
-| Dockerfile + docker-compose | `Dockerfile`, `docker-compose.yml` | ⏳ Pending | HIGH | 5h |
-| AWS ECS deployment config | `scripts/deploy_*.py` | ⏳ Pending | HIGH | 6h |
-| Sentry integration | `src/utils/monitoring.py` | ⏳ Pending | MEDIUM | 2h |
-| Health checks deep | `src/api/health_routes.py` | ⏳ Pending | MEDIUM | 2h |
-| Circuit breaker OpenAI | `src/utils/circuit_breaker.py` | ⏳ Pending | MEDIUM | 2h |
+| Dockerfile + docker-compose | `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docs/DOCKER.md` | ✅ Completed | HIGH | 5h |
+| AWS ECS deployment config | `scripts/deploy_ecs.py`, `scripts/deploy_setup_*.py`, `docs/DEPLOYMENT.md` | ✅ Completed | HIGH | 6h |
+| Sentry integration | `src/utils/monitoring.py`, `main.py`, `docs/MONITORING.md` | ✅ Completed | MEDIUM | 2h |
+| Health checks deep | `src/api/health_routes.py`, `main.py`, `docs/HEALTH_CHECKS.md` | ✅ Completed | MEDIUM | 2h |
+| Circuit breaker OpenAI | `src/utils/circuit_breaker.py`, `docs/CIRCUIT_BREAKER.md` | ✅ Completed | MEDIUM | 2h |
 
 ---
 
@@ -21,11 +21,11 @@
 
 | Task | File(s) | Status | Priority | Est. |
 |------|---------|--------|----------|------|
-| Pytest suite - agents | `tests/unit/test_agents.py` | ⏳ Pending | HIGH | 4h |
+| Pytest suite - agents | `tests/unit/test_agents.py` | ✅ Completed | HIGH | 4h |
 | Pytest suite - routes | `tests/unit/test_routes.py` | ⏳ Pending | HIGH | 4h |
 | Pytest suite - pipeline | `tests/unit/test_pipeline.py` | ⏳ Pending | HIGH | 3h |
 | E2E integration tests | `tests/integration/*` | ⏳ Pending | HIGH | 4h |
-| Coverage report setup | `pytest.ini`, `pyproject.toml` | ⏳ Pending | MEDIUM | 1h |
+| Coverage report setup | `pytest.ini`, `pyproject.toml` | ✅ Completed | MEDIUM | 1h |
 
 ---
 

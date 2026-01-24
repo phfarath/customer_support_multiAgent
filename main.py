@@ -13,6 +13,8 @@ from src.config import settings
 from src.database import ensure_indexes, close_connection
 from src.api import router, ingest_router, telegram_router, company_router, human_router
 from src.api.api_key_routes import router as api_key_router
+from src.api.health_routes import router as health_router
+from src.utils.monitoring import init_sentry, flush_events
 
 # Configure logging
 logging.basicConfig(
@@ -29,9 +31,16 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events"""
     # Startup
     print("Starting MultiAgent Customer Support System...")
+
+    # Initialize Sentry for error tracking and performance monitoring
+    init_sentry()
+
+    # Setup database indexes
     await ensure_indexes()
     print("Database indexes created/verified")
+
     yield
+
     # Shutdown
     print("Shutting down...")
     
@@ -39,8 +48,11 @@ async def lifespan(app: FastAPI):
     from src.utils.http_client import cleanup_http_clients
     await cleanup_http_clients()
     print("HTTP clients closed")
-    
-    # Close database
+
+    # Flush pending Sentry events
+    flush_events(timeout=2.0)
+
+    # Close database connection
     await close_connection()
     print("Database connection closed")
 
@@ -80,6 +92,7 @@ app.add_middleware(
 )
 
 # Include routes
+app.include_router(health_router)  # Health checks (no auth required)
 app.include_router(router)
 app.include_router(ingest_router)
 app.include_router(telegram_router)
