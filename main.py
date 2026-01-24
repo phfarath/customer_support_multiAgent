@@ -43,6 +43,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     print("Shutting down...")
+    
+    # Cleanup HTTP clients
+    from src.utils.http_client import cleanup_http_clients
+    await cleanup_http_clients()
+    print("HTTP clients closed")
 
     # Flush pending Sentry events
     flush_events(timeout=2.0)
