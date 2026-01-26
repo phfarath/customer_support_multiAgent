@@ -1,9 +1,11 @@
 """
 FastAPI routes for the customer support system
 """
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import Dict, Any
 from datetime import datetime
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.models import (
     TicketCreate,
@@ -23,13 +25,22 @@ from src.database import (
 from src.utils import AgentPipeline
 from src.config import settings
 from src.middleware.auth import verify_api_key
+from src.utils.sanitization import (
+    sanitize_text,
+    sanitize_identifier,
+)
 
 
 router = APIRouter(prefix="/api", tags=["tickets"])
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/tickets", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")  # Write operation
 async def create_ticket(
+    http_request: Request,  # Required by slowapi
     ticket_data: TicketCreate,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -55,6 +66,25 @@ async def create_ticket(
     # Set company_id from API key if not provided
     if not ticket_data.company_id:
         ticket_data.company_id = api_key["company_id"]
+
+    # SANITIZE ALL INPUTS
+    try:
+        ticket_id = sanitize_identifier(ticket_data.ticket_id)
+        subject = sanitize_text(ticket_data.subject, max_length=200)
+        description = sanitize_text(ticket_data.description, max_length=4000)
+        customer_id = sanitize_identifier(ticket_data.customer_id)
+
+        # Apply sanitized values
+        ticket_data.ticket_id = ticket_id
+        ticket_data.subject = subject
+        ticket_data.description = description
+        ticket_data.customer_id = customer_id
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
 
     collection = get_collection(COLLECTION_TICKETS)
 
@@ -96,7 +126,9 @@ async def create_ticket(
 
 
 @router.post("/run_pipeline/{ticket_id}", response_model=Dict[str, Any])
+@limiter.limit("10/minute")  # Heavy operation (expensive)
 async def run_pipeline(
+    http_request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -149,7 +181,9 @@ async def run_pipeline(
 
 
 @router.get("/tickets/{ticket_id}", response_model=Dict[str, Any])
+@limiter.limit("200/minute")  # Read operation
 async def get_ticket(
+    http_request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -190,7 +224,9 @@ async def get_ticket(
 
 
 @router.get("/tickets/{ticket_id}/audit", response_model=Dict[str, Any])
+@limiter.limit("200/minute")  # Read operation
 async def get_ticket_audit(
+    http_request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -233,7 +269,9 @@ async def get_ticket_audit(
 
 
 @router.get("/tickets/{ticket_id}/interactions", response_model=Dict[str, Any])
+@limiter.limit("200/minute")  # Read operation
 async def get_ticket_interactions(
+    http_request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -276,7 +314,9 @@ async def get_ticket_interactions(
 
 
 @router.get("/tickets/{ticket_id}/agent_states", response_model=Dict[str, Any])
+@limiter.limit("200/minute")  # Read operation
 async def get_ticket_agent_states(
+    http_request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -319,7 +359,9 @@ async def get_ticket_agent_states(
 
 
 @router.get("/tickets", response_model=Dict[str, Any])
+@limiter.limit("200/minute")  # Read operation
 async def list_tickets(
+    http_request: Request,  # Required by slowapi
     status: TicketStatus = None,
     priority: TicketPriority = None,
     limit: int = 50,

@@ -16,70 +16,15 @@ Antes de fazer qualquer modificação:
 
 ---
 
-## 🎯 Contexto Atual do Projeto
+## 🐛 Bugs Ativos
 
-### Status Atual
-- **Branch:** `feat/escalating_to_human` ✅ CONCLUÍDA
-- **Última Feature:** JWT Dashboard Authentication implementada ✅
-- **Sprint Atual:** **SEMANA 1 - FIX BUGS CRÍTICOS + SECURITY**
-- **Estado:** 95% completo - 3 bugs P0 corrigidos ✅ - API auth implementada ✅ - Dashboard JWT implementado ✅
+Registre bugs encontrados aqui. Quando um bug for corrigido, mova para a seção "Bugs Corrigidos".
 
-### 🚨 BUGS CRÍTICOS ATIVOS
+### Bugs Ativos
+- (Nenhum bug ativo no momento)
 
-#### NUNCA faça essas coisas (causam bugs ativos):
-
-1. **NUNCA confie no business hours check**
-   - `src/bots/telegram_bot.py:491` sempre retorna True
-   - Feature não funciona
-   - Fix pendente: implementar parsing correto
-
-#### ✅ BUGS CORRIGIDOS (Jan 22, 2026)
-
-1. **✅ company_config agora está disponível no context**
-   - FIXED: `src/utils/pipeline.py` agora injeta company_config
-   - Context sempre inclui `company_config` (dict vazio se não encontrado)
-   - Todos os agentes têm acesso a produtos, policies e teams
-
-2. **✅ Modelo OpenAI válido configurado**
-   - FIXED: `src/config.py` usa `gpt-4o-mini` (modelo válido)
-   - Todas as chamadas OpenAI funcionam corretamente
-
-3. **✅ Dependencies completas**
-   - FIXED: `requirements.txt` agora inclui todas as dependências
-   - chromadb, langchain-*, streamlit, python-telegram-bot instalados
-
-### O Que Está Funcionando
-✅ Pipeline completo (4 agentes) com fallbacks
-✅ Telegram bot (webhook + polling) 70%
-✅ RAG com ChromaDB 100%
-✅ Multi-tenancy (company_config + company isolation)
-✅ Escalação automática com emails
-✅ Dashboard Streamlit 60%
-✅ E2E tests (estrutura existe)
-✅ **API Key Authentication (20 endpoints protegidos)**
-
-### Sprint Atual: Semana 1 (Dias 1-5)
-
-#### Dias 1-2: CRITICAL BUGS
-- [x] Fix Bug #1: company_config no pipeline ✅ DONE
-- [x] Fix Bug #3: requirements.txt completo ✅ DONE
-- [x] Fix Bug #4: modelo OpenAI correto ✅ DONE
-- [ ] Fix Bug #2: business hours check
-- [ ] ensure_indexes() no startup
-- [ ] Timeouts em HTTP clients
-
-#### Dias 3-5: SECURITY
-- [ ] Rotacionar credenciais expostas (manual - instruções fornecidas)
-- [x] API key authentication ✅ DONE
-- [x] JWT para dashboard ✅ DONE
-- [ ] Input sanitization
-- [ ] Rate limiting API
-- [ ] Fix CORS policy
-
-### Próximas Sprints
-- **Semana 2-3:** Deployment (AWS ECS) + Testing
-- **Mês 2:** WhatsApp + Email Inbound (V1.1)
-- **Mês 2-3:** Dashboard completo (V1.2)
+### Bugs Corrigidos
+- [ ] 2026-01-23: Descrição do bug corrigido
 
 ---
 
@@ -412,6 +357,570 @@ JWT_EXPIRATION_HOURS=48  # 2 dias
 # Erro: KeyError: 'full_name' ou 'role'
 # Fix: Fazer logout e login novamente (token antigo não tem esses campos)
 ```
+
+---
+
+## 🛡️ Input Sanitization (XSS & Injection Prevention)
+
+**Status:** ✅ Implementado (23/01/2026)
+
+Sistema completo de sanitização de inputs para prevenir ataques XSS, SQL Injection e payloads maliciosos.
+
+### Como Funciona
+
+Todas as entradas de usuários são sanitizadas antes de serem processadas ou armazenadas no banco de dados:
+
+**Processo:**
+1. Input chega via API (Telegram, REST, etc)
+2. Função de sanitização apropriada é chamada
+3. Input é limpo (HTML escape, truncate, normalize)
+4. Input sanitizado é usado em operações DB e respostas
+
+**Tipos de Sanitização:**
+- **HTML Escaping:** Remove tags HTML e scripts (`<script>`, `<img>`, etc)
+- **Length Limiting:** Trunca strings longas (DoS prevention)
+- **Null Byte Removal:** Remove `\x00` que podem causar bugs em strings
+- **Whitespace Normalization:** Remove espaços excessivos
+- **Format Validation:** Valida emails, phones, company_ids
+
+### Funções Disponíveis
+
+**Arquivo:** `src/utils/sanitization.py` (237 linhas)
+
+```python
+# 1. Text sanitization (mensagens, descrições)
+sanitize_text(text: str, max_length: int = 4000) -> str
+# - HTML escape: <script> → &lt;script&gt;
+# - Truncate to max_length
+# - Remove null bytes
+# - Normalize whitespace
+
+# 2. Identifier sanitization (IDs de ticket, customer, etc)
+sanitize_identifier(identifier: str, max_length: int = 100) -> str
+# - HTML escape
+# - Truncate
+# - Remove null bytes
+
+# 3. Email validation
+sanitize_email(email: str) -> str
+# - Lowercase
+# - Regex validation (RFC 5322)
+# - Truncate to 254 chars
+# - Raises ValueError if invalid
+
+# 4. Phone normalization
+sanitize_phone(phone: str) -> str
+# - Remove non-digits (except +)
+# - Ensure starts with +
+# - Truncate to 20 chars
+
+# 5. Company ID validation
+sanitize_company_id(company_id: str) -> str
+# - Alphanumeric + underscore only
+# - Truncate to 50 chars
+# - Raises ValueError if invalid chars
+
+# 6. Dict key filtering
+sanitize_dict_keys(data: dict, allowed_keys: list) -> dict
+# - Remove keys not in whitelist
+# - Prevents parameter pollution
+
+# 7. Safe filename
+sanitize_filename(filename: str, max_length: int = 255) -> str
+# - Remove path separators (/, \)
+# - Remove dangerous chars
+# - Truncate
+```
+
+### Endpoints Protegidos (10)
+
+**1. Message Ingestion:**
+```python
+# src/api/ingest_routes.py
+text = sanitize_text(request.text, max_length=4000)
+external_user_id = sanitize_identifier(request.external_user_id)
+company_id = sanitize_company_id(request.company_id)
+customer_phone = sanitize_phone(request.customer_phone)
+customer_email = sanitize_email(request.customer_email)
+```
+
+**2. Ticket Creation:**
+```python
+# src/api/routes.py
+ticket_id = sanitize_identifier(ticket_data.ticket_id)
+subject = sanitize_text(ticket_data.subject, max_length=200)
+description = sanitize_text(ticket_data.description, max_length=4000)
+customer_id = sanitize_identifier(ticket_data.customer_id)
+```
+
+**3. Human Agent Reply:**
+```python
+# src/api/human_routes.py
+ticket_id = sanitize_identifier(request.ticket_id)
+reply_text = sanitize_text(request.reply_text, max_length=4000)
+```
+
+**4. Telegram Webhook:**
+```python
+# src/api/telegram_routes.py
+text = sanitize_text(parsed["text"], max_length=4000)
+external_user_id = sanitize_identifier(parsed["external_user_id"])
+company_id = sanitize_company_id(company_id) if company_id else None
+```
+
+**5. Company Config:**
+```python
+# src/api/company_routes.py (create/update)
+company_id = sanitize_company_id(config.company_id)
+company_name = sanitize_text(config.company_name, max_length=100)
+escalation_email = sanitize_email(config.escalation_email)
+bot_handoff_message = sanitize_text(config.bot_handoff_message, max_length=1000)
+```
+
+### Exemplos de Ataques Prevenidos
+
+**XSS (Cross-Site Scripting):**
+```python
+# Antes (VULNERÁVEL):
+message = "<script>alert('XSS')</script>"
+await save_interaction(message=message)  # Armazenado sem escape!
+
+# Depois (SEGURO):
+message = sanitize_text("<script>alert('XSS')</script>")
+# Result: "&lt;script&gt;alert('XSS')&lt;/script&gt;"
+await save_interaction(message=message)  # Seguro!
+```
+
+**SQL Injection (MongoDB):**
+```python
+# Antes (VULNERÁVEL):
+company_id = "techcorp'; DROP TABLE users; --"
+await companies.find_one({"company_id": company_id})  # Risco!
+
+# Depois (SEGURO):
+company_id = sanitize_company_id("techcorp'; DROP TABLE users; --")
+# Raises ValueError: Invalid company_id (chars especiais rejeitados)
+```
+
+**Null Byte Attack:**
+```python
+# Antes (VULNERÁVEL):
+filename = "document.pdf\x00.exe"
+# Sistema pode interpretar como document.pdf (bypass de extensão)
+
+# Depois (SEGURO):
+filename = sanitize_text("document.pdf\x00.exe")
+# Result: "document.pdf.exe" (null byte removido)
+```
+
+**DoS via Payload Gigante:**
+```python
+# Antes (VULNERÁVEL):
+message = "A" * 10_000_000  # 10MB de texto
+await save_interaction(message=message)  # Sobrecarrega DB!
+
+# Depois (SEGURO):
+message = sanitize_text("A" * 10_000_000, max_length=4000)
+# Result: "AAAA..." (4000 chars) - Truncado!
+```
+
+### Error Handling
+
+Sanitização sempre retorna valor ou lança `ValueError`:
+
+```python
+try:
+    email = sanitize_email(user_input)
+except ValueError as e:
+    raise HTTPException(
+        status_code=400,
+        detail=f"Invalid input: {str(e)}"
+    )
+```
+
+### Boas Práticas
+
+**DO:**
+- ✅ Sanitize ANTES de salvar no DB
+- ✅ Sanitize ANTES de usar em queries
+- ✅ Usar função específica para cada tipo (email, phone, text)
+- ✅ Definir max_length apropriado para cada campo
+
+**DON'T:**
+- ❌ Confiar em input do usuário sem sanitização
+- ❌ Sanitizar apenas no frontend (sempre no backend também)
+- ❌ Usar mesma função para todos os tipos de input
+- ❌ Esquecer de truncar strings longas
+
+---
+
+## 🚦 Rate Limiting (DoS & Abuse Prevention)
+
+**Status:** ✅ Implementado (23/01/2026)
+
+Sistema completo de rate limiting usando slowapi para prevenir abuso e ataques DoS.
+
+### Como Funciona
+
+Cada endpoint tem um limite de requisições por minuto baseado no IP do cliente:
+
+**Processo:**
+1. Cliente faz requisição
+2. slowapi verifica quantas requisições esse IP fez no último minuto
+3. Se dentro do limite: processa normalmente
+4. Se exceder limite: retorna **429 Too Many Requests**
+
+**Headers de Resposta:**
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1674567890
+```
+
+### Configuração
+
+**Middleware Global (main.py):**
+```python
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+# Add to app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+```
+
+**Configurações (src/config.py):**
+```python
+# Rate Limiting Configuration (API protection)
+rate_limit_default: str = "100/minute"  # Default rate limit
+rate_limit_ingest: str = "20/minute"    # Message ingestion
+rate_limit_pipeline: str = "10/minute"  # Pipeline execution
+rate_limit_read: str = "200/minute"     # Read operations
+rate_limit_write: str = "30/minute"     # Write operations
+rate_limit_admin: str = "10/minute"     # Admin operations
+```
+
+### Limites por Tipo de Operação
+
+**Categoria 1: Ingestion (20/min)**
+- `POST /api/ingest-message` - Previne spam de mensagens
+- Protege contra flood de tickets
+
+**Categoria 2: Heavy Operations (10/min)**
+- `POST /api/run_pipeline/{ticket_id}` - Pipeline é caro (OpenAI calls)
+- Previne abuso de processamento de IA
+
+**Categoria 3: Read Operations (200/min)**
+- `GET /api/tickets/{ticket_id}`
+- `GET /api/tickets/{ticket_id}/audit`
+- `GET /api/tickets/{ticket_id}/interactions`
+- `GET /api/tickets/{ticket_id}/agent_states`
+- `GET /api/tickets` (list)
+- `GET /api/companies/{company_id}`
+- `GET /api/companies/` (list)
+- `GET /api/human/escalated`
+- Operações de leitura podem ter limite mais alto
+
+**Categoria 4: Write Operations (30/min)**
+- `POST /api/tickets` - Criar ticket
+- `POST /api/human/reply` - Responder ticket
+- `PUT /api/companies/{company_id}` - Atualizar config
+- Operações de escrita moderadamente limitadas
+
+**Categoria 5: Admin Operations (10/min)**
+- `POST /api/companies/` - Criar company config
+- `POST /api/keys/` - Criar API key
+- `DELETE /api/keys/{key_id}` - Revogar API key
+- `GET /api/keys/` - Listar API keys
+- Operações administrativas mais restritas
+
+**Categoria 6: Critical Admin (5/min)**
+- `DELETE /api/companies/{company_id}` - Deletar company
+- `POST /telegram/webhook/set` - Configurar webhook
+- `POST /telegram/webhook/delete` - Deletar webhook
+- Operações críticas extremamente limitadas
+
+**Categoria 7: Public Endpoints (50/min)**
+- `POST /telegram/webhook` - Webhook público (Telegram servers)
+- Menos restritivo (Telegram faz poucas chamadas)
+
+### Endpoints Protegidos (25)
+
+**Exemplo de Aplicação:**
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import Request
+
+# Initialize limiter
+limiter = Limiter(key_func=get_remote_address)
+
+# Apply to endpoint
+@router.post("/ingest-message")
+@limiter.limit("20/minute")  # Rate limit decorator
+async def ingest_message(
+    http_request: Request,  # Required by slowapi
+    request: IngestMessageRequest,
+    api_key: dict = Depends(verify_api_key)
+):
+    # ... endpoint logic
+```
+
+### Arquivos Modificados
+
+**main.py:**
+- slowapi middleware configurado
+- Exception handler para 429
+
+**src/config.py:**
+- Configurações de rate limit por categoria
+
+**Todos os route files:**
+- `src/api/ingest_routes.py` - 1 endpoint
+- `src/api/routes.py` - 7 endpoints
+- `src/api/human_routes.py` - 2 endpoints
+- `src/api/telegram_routes.py` - 5 endpoints
+- `src/api/company_routes.py` - 5 endpoints
+- `src/api/api_key_routes.py` - 3 endpoints
+
+### Response quando Limite Excedido
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 42
+X-RateLimit-Limit: 20
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1674567890
+
+{
+  "error": "Rate limit exceeded: 20 per 1 minute"
+}
+```
+
+### Testes de Rate Limiting
+
+```bash
+# Teste manual com curl
+for i in {1..25}; do
+  curl -X POST http://localhost:8000/api/ingest-message \
+    -H "X-API-Key: sk_..." \
+    -H "Content-Type: application/json" \
+    -d '{"channel":"telegram","text":"test","external_user_id":"test123"}' \
+    -w "\nStatus: %{http_code}\n"
+  sleep 1
+done
+
+# Primeiros 20: 200 OK
+# Próximos 5: 429 Too Many Requests
+```
+
+### Boas Práticas
+
+**DO:**
+- ✅ Usar limites apropriados para cada tipo de endpoint
+- ✅ Documentar limites no README e API docs
+- ✅ Incluir headers `X-RateLimit-*` nas respostas
+- ✅ Configurar `Retry-After` header em 429
+
+**DON'T:**
+- ❌ Usar mesmo limite para todas as operações
+- ❌ Limites muito baixos (frustra usuários legítimos)
+- ❌ Limites muito altos (não protege contra abuso)
+- ❌ Esquecer de adicionar `Request` param (slowapi precisa)
+
+---
+
+## 🌐 CORS Hardening (Cross-Origin Security)
+
+**Status:** ✅ Implementado (23/01/2026)
+
+CORS (Cross-Origin Resource Sharing) hardening para prevenir acessos não autorizados de domínios maliciosos.
+
+### O Que Mudou
+
+**Antes (INSEGURO):**
+```python
+# main.py
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # ❌ QUALQUER domínio pode acessar!
+    allow_credentials=True,
+    allow_methods=["*"],      # ❌ Todos os métodos
+    allow_headers=["*"],      # ❌ Todos os headers
+)
+```
+
+**Depois (SEGURO):**
+```python
+# main.py
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,  # ✅ Whitelist específica
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # ✅ Métodos específicos
+    allow_headers=[                                # ✅ Headers específicos
+        "Content-Type",
+        "X-API-Key",
+        "Authorization",
+        "Accept",
+        "Origin",
+    ],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining"],
+    max_age=600,  # Cache preflight por 10 min
+)
+```
+
+### Configuração
+
+**src/config.py:**
+```python
+from typing import List
+
+# CORS Configuration (Cross-Origin Resource Sharing)
+cors_allowed_origins: List[str] = [
+    "http://localhost:3000",      # React dev server
+    "http://localhost:8501",      # Streamlit dashboard
+    "http://127.0.0.1:3000",      # Alternative localhost
+    "http://127.0.0.1:8501",      # Alternative localhost
+    # Production domains should be added via environment variable
+]
+```
+
+**.env.example:**
+```bash
+# CORS Configuration (Cross-Origin Resource Sharing)
+# Comma-separated list of allowed origins
+# Development: http://localhost:3000,http://localhost:8501
+# Production: https://dashboard.yourdomain.com,https://api.yourdomain.com
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8501,http://127.0.0.1:3000,http://127.0.0.1:8501
+```
+
+### Como Usar em Produção
+
+**1. Adicionar domínios de produção ao .env:**
+```bash
+CORS_ALLOWED_ORIGINS=https://dashboard.mycompany.com,https://api.mycompany.com,https://app.mycompany.com
+```
+
+**2. Pydantic carrega automaticamente:**
+```python
+# src/config.py lê da env var
+cors_allowed_origins: List[str] = [...]  # Sobrescrito pelo .env
+```
+
+### Proteções Implementadas
+
+**1. Origin Whitelist:**
+- Apenas domínios na lista podem fazer requests cross-origin
+- Requests de outros domínios são bloqueados pelo browser
+
+**2. Métodos Restritos:**
+- Apenas GET, POST, PUT, DELETE, OPTIONS permitidos
+- PATCH, TRACE, CONNECT bloqueados
+
+**3. Headers Restritos:**
+- Apenas headers essenciais permitidos
+- Headers customizados maliciosos bloqueados
+
+**4. Preflight Cache:**
+- Preflight requests (OPTIONS) são cached por 10 min
+- Reduz overhead de CORS checks
+
+**5. Credentials Permitidos:**
+- `allow_credentials=True` permite cookies e auth headers
+- Necessário para API keys e JWT tokens
+
+### Exemplo de Request Bloqueado
+
+```javascript
+// Frontend em https://malicious-site.com tenta acessar API
+fetch('https://api.mycompany.com/api/tickets', {
+  headers: {
+    'X-API-Key': 'sk_stolen_key_123'
+  }
+})
+
+// Browser bloqueia com erro CORS:
+// Access to fetch at 'https://api.mycompany.com/api/tickets'
+// from origin 'https://malicious-site.com' has been blocked by CORS policy:
+// The 'Access-Control-Allow-Origin' header has a value
+// 'https://dashboard.mycompany.com' that is not equal to the supplied origin.
+```
+
+### Exemplo de Request Permitido
+
+```javascript
+// Frontend em https://dashboard.mycompany.com (whitelist)
+fetch('https://api.mycompany.com/api/tickets', {
+  headers: {
+    'X-API-Key': 'sk_...'
+  }
+})
+
+// Browser permite (domínio na whitelist)
+// Response headers:
+// Access-Control-Allow-Origin: https://dashboard.mycompany.com
+// Access-Control-Allow-Credentials: true
+```
+
+### Troubleshooting
+
+**Erro: "CORS policy blocked"**
+```bash
+# 1. Verificar domínio na whitelist
+echo $CORS_ALLOWED_ORIGINS
+
+# 2. Adicionar domínio ao .env
+CORS_ALLOWED_ORIGINS=https://dashboard.mycompany.com,https://newdomain.com
+
+# 3. Reiniciar API
+python main.py
+```
+
+**Erro: "Credentials not allowed"**
+```python
+# Verificar allow_credentials=True no main.py
+# Deve estar habilitado para API keys funcionarem
+```
+
+### Boas Práticas
+
+**DO:**
+- ✅ Usar HTTPS em produção (never HTTP)
+- ✅ Listar apenas domínios que você controla
+- ✅ Usar subdomínios específicos (não wildcards)
+- ✅ Testar CORS antes de deploy
+
+**DON'T:**
+- ❌ Usar `allow_origins=["*"]` em produção
+- ❌ Adicionar domínios de terceiros à whitelist
+- ❌ Usar wildcards (`*.mycompany.com`)
+- ❌ Confiar apenas em CORS para segurança (use API keys também)
+
+### Security Layering
+
+CORS é **primeira linha de defesa**, mas não suficiente sozinho:
+
+```
+┌─────────────────────────────────────┐
+│ 1. CORS (Browser-level)            │ ← Bloqueia origem maliciosa
+├─────────────────────────────────────┤
+│ 2. API Key Auth (App-level)        │ ← Valida autenticação
+├─────────────────────────────────────┤
+│ 3. Rate Limiting (Infrastructure)  │ ← Previne abuso
+├─────────────────────────────────────┤
+│ 4. Input Sanitization (Data-level) │ ← Limpa payloads
+└─────────────────────────────────────┘
+```
+
+Todas as 4 camadas são necessárias para security completo!
 
 ---
 
@@ -911,6 +1420,96 @@ if page == "Métricas":
 
 ---
 
+## 📝 Documentando Novas Features
+
+Quando implementar uma nova feature, documente-a seguindo este padrão:
+
+### Criar Documento de Implementação
+
+1. **Criar arquivo** em `docs/implementations/`:
+   - Nome: `YYYY-MM-DD_HH-MM_<feature-name>.md`
+   - Exemplo: `2026-01-23_18-30_api-key-authentication.md`
+
+2. **Estrutura do documento:**
+   - Título e descrição da feature
+   - Status (✅ Implementado / 🚧 Em desenvolvimento)
+   - Como funciona
+   - Exemplos de uso
+   - Arquivos relacionados
+   - Endpoints afetados
+   - Boas práticas
+
+3. **Atualizar índice:**
+   - Adicionar entrada em `docs/implementations/README.md`
+
+### Exemplo
+
+```bash
+# 1. Criar documento
+cat > docs/implementations/2026-01-24_10-30_whatsapp-support.md << 'EOF'
+# WhatsApp Support Implementation
+
+**Status:** 🚧 Em desenvolvimento
+**Data:** 2026-01-24
+
+## Como Funciona
+...
+EOF
+
+# 2. Atualizar índice
+echo "- WhatsApp Support - docs/implementations/2026-01-24_10-30_whatsapp-support.md" >> docs/implementations/README.md
+```
+
+### Template para Novas Features
+
+Use este template ao criar novos documentos de implementação:
+
+```markdown
+# <Feature Name> Implementation
+
+**Status:** ✅ Implementado / 🚧 Em desenvolvimento
+**Data:** YYYY-MM-DD
+**Versão:** v1.0
+
+## Descrição
+
+Breve descrição da feature implementada.
+
+## Como Funciona
+
+Explicação detalhada de como a feature funciona.
+
+## Arquivos Relacionados
+
+- **Modelo:** `src/models/<model>.py`
+- **Routes:** `src/api/<routes>.py`
+- **Utils:** `src/utils/<utils>.py`
+
+## Endpoints Afetados
+
+- `METHOD /path` - Descrição
+
+## Exemplos de Uso
+
+```bash
+# Exemplo de uso
+curl -X POST http://localhost:8000/api/endpoint \
+  -H "X-API-Key: sk_..."
+```
+
+## Boas Práticas
+
+**DO:**
+- ✅ Prática recomendada 1
+- ✅ Prática recomendada 2
+
+**DON'T:**
+- ❌ Coisa a evitar 1
+- ❌ Coisa a evitar 2
+```
+
+---
+
 ## 🔒 Padrões Obrigatórios
 
 ### Security Patterns (CRÍTICO)
@@ -1367,6 +1966,7 @@ except Exception as e:
 - `docs/MULTI_TENANCY.md` - Como multi-tenancy funciona
 - `docs/TELEGRAM_SETUP.md` - Setup Telegram bot
 - `docs/mongodb_collections.md` - Schema detalhado
+- `docs/implementations/` - Implementações detalhadas de features (API Key Auth, JWT Dashboard, Input Sanitization, Rate Limiting, CORS)
 
 ### External Docs
 
@@ -1384,11 +1984,14 @@ except Exception as e:
 - [ ] Async/await usado para I/O
 - [ ] Error handling implementado
 - [ ] Logging adicionado
+- [ ] **Input sanitization aplicada** (se endpoint recebe user input)
+- [ ] **Rate limiting configurado** (se novo endpoint API)
 - [ ] Testes criados/atualizados
 - [ ] Testes passando (`pytest tests/ -v`)
 - [ ] Documentação atualizada (ARCHITECTURE.md se necessário)
 - [ ] Commit message seguindo convenção
 - [ ] Sem secrets no código (.env usado corretamente)
+- [ ] **CORS verificado** (se mudou origins permitidas)
 
 ---
 

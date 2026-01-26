@@ -11,16 +11,23 @@ from src.adapters.telegram_adapter import TelegramAdapter
 from src.models import IngestMessageRequest, IngestChannel
 from src.api.ingest_routes import ingest_message
 from src.middleware.auth import verify_api_key
+from src.utils.sanitization import sanitize_text, sanitize_identifier, sanitize_company_id
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 _WEBHOOK_DUMP_PATH = Path("logs/telegram_webhook.jsonl")
 
 
 @router.post("/webhook")
+@limiter.limit("50/minute")  # Public endpoint (called by Telegram servers)
 async def telegram_webhook(request: Request) -> Dict[str, Any]:
     """
     Telegram webhook endpoint
@@ -61,26 +68,36 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
         if not parsed:
             logger.warning(f"Received update without message: {update.get('update_id')}")
             return {"status": "ok", "message": "No message to process"}
-        
+
+        # SANITIZE INPUTS from Telegram
+        try:
+            text = sanitize_text(parsed["text"], max_length=4000)
+            external_user_id = sanitize_identifier(parsed["external_user_id"])
+
+            # Sanitize company_id if present
+            company_id = parsed["metadata"].get("company_id")
+            if company_id:
+                company_id = sanitize_company_id(company_id)
+        except ValueError as e:
+            logger.warning(f"Input validation failed for Telegram message: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid input: {str(e)}"
+            )
+
         # Extract chat_id for sending reply
         chat_id = parsed["metadata"].get("chat_id")
         callback_query_id = parsed["metadata"].get("callback_query_id")
-        
-        # Extract company_id from metadata if available (for multi-tenancy)
-        company_id = parsed["metadata"].get("company_id")
-        
-        # Create ingest message request
+
+        # Create ingest message request (using sanitized values)
         ingest_request = IngestMessageRequest(
             channel=IngestChannel.TELEGRAM,
-            external_user_id=parsed["external_user_id"],
-            text=parsed["text"],
-            metadata=parsed["metadata"]
+            external_user_id=external_user_id,
+            text=text,
+            metadata=parsed["metadata"],
+            company_id=company_id
         )
-        
-        # Add company_id to metadata if available
-        if company_id:
-            ingest_request.metadata["company_id"] = company_id
-        
+
         # Process the message through the ingest endpoint
         logger.info(f"Calling ingest_message with: {ingest_request}")
         response = await ingest_message(ingest_request)
@@ -122,7 +139,11 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
 
 
 @router.get("/webhook/info")
-async def get_webhook_info(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Admin endpoint
+async def get_webhook_info(
+    http_request: Request,  # Required by slowapi
+    api_key: dict = Depends(verify_api_key)
+) -> Dict[str, Any]:
     """
     Get current Telegram webhook information
 
@@ -146,7 +167,9 @@ async def get_webhook_info(api_key: dict = Depends(verify_api_key)) -> Dict[str,
 
 
 @router.post("/webhook/set")
+@limiter.limit("5/minute")  # Critical admin operation
 async def set_webhook(
+    http_request: Request,  # Required by slowapi
     webhook_url: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -174,7 +197,11 @@ async def set_webhook(
 
 
 @router.post("/webhook/delete")
-async def delete_webhook(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
+@limiter.limit("5/minute")  # Critical admin operation
+async def delete_webhook(
+    http_request: Request,  # Required by slowapi
+    api_key: dict = Depends(verify_api_key)
+) -> Dict[str, Any]:
     """
     Delete the Telegram webhook
 
@@ -198,7 +225,11 @@ async def delete_webhook(api_key: dict = Depends(verify_api_key)) -> Dict[str, A
 
 
 @router.get("/bot/info")
-async def get_bot_info(api_key: dict = Depends(verify_api_key)) -> Dict[str, Any]:
+@limiter.limit("30/minute")  # Admin endpoint
+async def get_bot_info(
+    http_request: Request,  # Required by slowapi
+    api_key: dict = Depends(verify_api_key)
+) -> Dict[str, Any]:
     """
     Get bot information from Telegram
 

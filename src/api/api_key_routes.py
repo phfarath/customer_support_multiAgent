@@ -1,19 +1,26 @@
 """
 API Key Management Routes
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from src.models.api_key import APIKey
 from src.database import get_collection, COLLECTION_API_KEYS
 from src.middleware.auth import verify_api_key
 from datetime import datetime
 import logging
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 router = APIRouter(prefix="/api/keys", tags=["api-keys"])
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/", response_model=APIKey)
+@limiter.limit("10/minute")  # Admin operation
 async def create_api_key(
+    http_request: Request,  # Required by slowapi
     company_id: str,
     name: str,
     permissions: list[str] = ["read", "write"],
@@ -61,7 +68,11 @@ async def create_api_key(
 
 
 @router.get("/", response_model=list[dict])
-async def list_api_keys(api_key: dict = Depends(verify_api_key)):
+@limiter.limit("100/minute")  # Read operation
+async def list_api_keys(
+    http_request: Request,  # Required by slowapi
+    api_key: dict = Depends(verify_api_key)
+):
     """
     List all API keys for authenticated company
 
@@ -88,7 +99,12 @@ async def list_api_keys(api_key: dict = Depends(verify_api_key)):
 
 
 @router.delete("/{key_id}")
-async def revoke_api_key(key_id: str, api_key: dict = Depends(verify_api_key)):
+@limiter.limit("10/minute")  # Admin operation
+async def revoke_api_key(
+    http_request: Request,  # Required by slowapi
+    key_id: str,
+    api_key: dict = Depends(verify_api_key)
+):
     """
     Revoke (deactivate) an API key
 

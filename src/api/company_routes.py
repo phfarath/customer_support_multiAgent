@@ -1,21 +1,33 @@
 """
 FastAPI routes for company configuration management
 """
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import Dict, Any, List
 import logging
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from src.models import CompanyConfig, CompanyConfigCreate, CompanyConfigUpdate
 from src.database import get_collection, COLLECTION_COMPANY_CONFIGS
 from src.middleware.auth import verify_api_key
+from src.utils.sanitization import (
+    sanitize_company_id,
+    sanitize_text,
+    sanitize_email,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/companies", tags=["companies"])
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 
 @router.post("/", response_model=CompanyConfig)
+@limiter.limit("10/minute")  # Admin operation
 async def create_company_config(
+    http_request: Request,  # Required by slowapi
     config: CompanyConfigCreate,
     api_key: dict = Depends(verify_api_key)
 ) -> CompanyConfig:
@@ -39,6 +51,29 @@ async def create_company_config(
             detail="Cannot create config for different company"
         )
 
+    # SANITIZE INPUTS
+    try:
+        company_id = sanitize_company_id(config.company_id)
+        company_name = sanitize_text(config.company_name, max_length=100)
+
+        # Apply sanitized values
+        config.company_id = company_id
+        config.company_name = company_name
+
+        # Sanitize optional fields
+        if config.escalation_email:
+            config.escalation_email = sanitize_email(config.escalation_email)
+
+        if config.bot_handoff_message:
+            config.bot_handoff_message = sanitize_text(config.bot_handoff_message, max_length=1000)
+
+    except ValueError as e:
+        logger.warning(f"Input validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
+        )
+
     try:
         collection = get_collection(COLLECTION_COMPANY_CONFIGS)
 
@@ -60,7 +95,9 @@ async def create_company_config(
 
 
 @router.get("/{company_id}", response_model=CompanyConfig)
+@limiter.limit("200/minute")  # Read operation
 async def get_company_config(
+    http_request: Request,  # Required by slowapi
     company_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> CompanyConfig:
@@ -108,7 +145,9 @@ async def get_company_config(
 
 
 @router.put("/{company_id}", response_model=CompanyConfig)
+@limiter.limit("30/minute")  # Write operation
 async def update_company_config(
+    http_request: Request,  # Required by slowapi
     company_id: str,
     config: CompanyConfigUpdate,
     api_key: dict = Depends(verify_api_key)
@@ -132,6 +171,28 @@ async def update_company_config(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Company config not found: {company_id}"
+        )
+
+    # SANITIZE INPUTS
+    try:
+        # Sanitize company_id from path parameter
+        company_id = sanitize_company_id(company_id)
+
+        # Sanitize optional update fields
+        if config.company_name is not None:
+            config.company_name = sanitize_text(config.company_name, max_length=100)
+
+        if config.escalation_email is not None:
+            config.escalation_email = sanitize_email(config.escalation_email)
+
+        if config.bot_handoff_message is not None:
+            config.bot_handoff_message = sanitize_text(config.bot_handoff_message, max_length=1000)
+
+    except ValueError as e:
+        logger.warning(f"Input validation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input: {str(e)}"
         )
 
     try:
@@ -169,7 +230,9 @@ async def update_company_config(
 
 
 @router.delete("/{company_id}")
+@limiter.limit("5/minute")  # Critical admin operation
 async def delete_company_config(
+    http_request: Request,  # Required by slowapi
     company_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -218,7 +281,9 @@ async def delete_company_config(
 
 
 @router.get("/", response_model=List[CompanyConfig])
+@limiter.limit("200/minute")  # Read operation
 async def list_company_configs(
+    http_request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> List[CompanyConfig]:
     """
