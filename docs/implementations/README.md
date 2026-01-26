@@ -14,6 +14,10 @@ Este diretório contém documentação detalhada de features implementadas no pr
 - [Rate Limiting](2026-01-23_18-30_rate-limiting.md) - Prevenção de DoS e abuso de API
 - [CORS Hardening](2026-01-23_18-30_cors-hardening.md) - Controle de acesso cross-origin
 
+### Testes
+
+- [Testing Suite](2026-01-24_17-00_testing-suite.md) - Suíte completa de testes automatizados com pytest
+
 ---
 
 ## 📝 Convenções de Nomenclatura
@@ -84,6 +88,7 @@ Links para documentação relacionada.
 | Input Sanitization | ✅ 90% | 2026-01-23 |
 | Rate Limiting | ✅ 95% | 2026-01-23 |
 | CORS Hardening | ✅ 100% | 2026-01-23 |
+| Testing Suite | ✅ 100% | 2026-01-24 |
 
 ---
 
@@ -107,5 +112,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-23
+**Última atualização:** 2026-01-24
 **Versão do documento:** 1.0
