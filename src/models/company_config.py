@@ -79,6 +79,10 @@ class CompanyConfig(BaseModel):
         None,
         description="Message shown when a ticket is escalated to a human"
     )
+    handoff_warning_message: Optional[str] = Field(
+        None,
+        description="Warning message sent BEFORE escalation explaining why (supports {reason} placeholder)"
+    )
     
     # Escalation
     escalation_contact: Optional[str] = Field(None, description="Telegram Group/Chat ID for human escalation")
@@ -106,6 +110,7 @@ class CompanyConfigCreate(BaseModel):
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
     bot_handoff_message: Optional[str] = None
+    handoff_warning_message: Optional[str] = None
     
     # New fields
     teams: Optional[List[Team]] = None
@@ -132,6 +137,7 @@ class CompanyConfigUpdate(BaseModel):
     bot_welcome_message: Optional[str] = None
     bot_outside_hours_message: Optional[str] = None
     bot_handoff_message: Optional[str] = None
+    handoff_warning_message: Optional[str] = None
     
     # New fields
     teams: Optional[List[Team]] = None

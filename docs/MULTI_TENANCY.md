@@ -50,9 +50,12 @@ Stores company configurations for multi-tenancy support.
   },
   "bot_name": "Suporte Bot",
   "bot_welcome_message": "Olá! Bem-vindo ao suporte da Minha Empresa. Como posso ajudar você hoje?",
+  "bot_handoff_message": "Seu ticket #{ticket_id} foi escalado. Um atendente entrará em contato em breve.",
+  "handoff_warning_message": "⚠️ Estamos transferindo você para um especialista. Motivo: {reason}. Aguarde um momento.",
   "custom_instructions": "Sempre use linguagem amigável e ofereça descontos de 10% para clientes fiéis."
 }
 ```
+
 
 ### Indexes
 

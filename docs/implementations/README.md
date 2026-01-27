@@ -21,6 +21,7 @@ Este diretório contém documentação detalhada de features implementadas no pr
 ### Contexto e Personalização
 
 - [Context Persistence](2026-01-27_19-00_context-persistence.md) - Persistência de contexto de conversação entre tickets
+- [Handoff Warnings](2026-01-27_20-50_handoff-warnings.md) - Avisos proativos antes de escalação para humano
 
 ---
 
@@ -94,6 +95,7 @@ Links para documentação relacionada.
 | CORS Hardening | ✅ 100% | 2026-01-23 |
 | Testing Suite | ✅ 100% | 2026-01-24 |
 | Context Persistence | ✅ 100% | 2026-01-27 |
+| Handoff Warnings | ✅ 100% | 2026-01-27 |
 
 ---
 
@@ -118,4 +120,4 @@ Links para documentação relacionada.
 ---
 
 **Última atualização:** 2026-01-27
-**Versão do documento:** 1.1
+**Versão do documento:** 1.2

@@ -66,6 +66,48 @@ async def _get_last_interactions(ticket_id: str, limit: int = 3) -> list[Dict[st
     return list(reversed(interactions))
 
 
+def _generate_warning_message(
+    reasons: list[str], 
+    company_config: CompanyConfig | None = None
+) -> str:
+    """
+    Generate warning message before escalation explaining why.
+    
+    Args:
+        reasons: List of escalation reasons
+        company_config: Optional company configuration
+    
+    Returns:
+        Formatted warning message for the customer
+    """
+    # Build default message
+    default_message = (
+        "⚠️ Para melhor atendê-lo, sua solicitação será transferida "
+        "para um de nossos especialistas."
+    )
+    
+    if reasons:
+        if len(reasons) == 1:
+            reason_summary = reasons[0]
+        else:
+            reason_summary = f"{reasons[0]} e {reasons[1]}"
+        default_message += f" Motivo: {reason_summary}."
+    
+    default_message += " Aguarde um momento, por favor."
+    
+    # Check for custom template
+    if company_config and company_config.handoff_warning_message:
+        try:
+            return company_config.handoff_warning_message.format(
+                reason=reasons[0] if reasons else "necessidade de especialista",
+                reasons=", ".join(reasons) if reasons else "necessidade de especialista"
+            )
+        except Exception:
+            return company_config.handoff_warning_message
+    
+    return default_message
+
+
 @router.post("/ingest-message", response_model=IngestMessageResponse)
 @limiter.limit("20/minute")  # Rate limit: 20 messages per minute
 async def ingest_message(
@@ -205,13 +247,24 @@ async def ingest_message(
         if escalated and not was_escalated:
             company_config = await _get_company_config(ticket.get("company_id"))
             from src.config import settings
+            
+            # 1. Generate warning message (BEFORE escalation confirmation)
+            warning_message = _generate_warning_message(
+                reasons=escalation_reasons,
+                company_config=company_config
+            )
+            
+            # 2. Generate handoff message (confirmation)
             handoff_message = settings.escalation_handoff_message
             if company_config and company_config.bot_handoff_message:
                 handoff_message = company_config.bot_handoff_message
             try:
-                reply_text = handoff_message.format(ticket_id=ticket_id)
+                handoff_message = handoff_message.format(ticket_id=ticket_id)
             except Exception:
-                reply_text = handoff_message
+                pass
+            
+            # 3. Combine: Warning + Handoff
+            reply_text = f"{warning_message}\n\n{handoff_message}"
         elif escalated:
             reply_text = None
 
