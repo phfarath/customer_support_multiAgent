@@ -18,6 +18,10 @@ Este diretório contém documentação detalhada de features implementadas no pr
 
 - [Testing Suite](2026-01-24_17-00_testing-suite.md) - Suíte completa de testes automatizados com pytest
 
+### Contexto e Personalização
+
+- [Context Persistence](2026-01-27_19-00_context-persistence.md) - Persistência de contexto de conversação entre tickets
+
 ---
 
 ## 📝 Convenções de Nomenclatura
@@ -89,6 +93,7 @@ Links para documentação relacionada.
 | Rate Limiting | ✅ 95% | 2026-01-23 |
 | CORS Hardening | ✅ 100% | 2026-01-23 |
 | Testing Suite | ✅ 100% | 2026-01-24 |
+| Context Persistence | ✅ 100% | 2026-01-27 |
 
 ---
 
@@ -112,5 +117,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-24
-**Versão do documento:** 1.0
+**Última atualização:** 2026-01-27
+**Versão do documento:** 1.1

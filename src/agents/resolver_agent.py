@@ -99,6 +99,32 @@ class ResolverAgent(BaseAgent):
             except Exception as e:
                 print(f"RAG Search failed: {e}")
 
+        # Context Persistence: Retrieve customer's past ticket summaries
+        customer_context = ""
+        customer_id = ticket.get("customer_id")
+        company_id = ticket.get("company_id")
+        if customer_id and company_id:
+            try:
+                query = ticket.get("description", "")
+                if interactions:
+                    for i in reversed(interactions):
+                        i_type = i.get("type", "") if isinstance(i, dict) else getattr(i, "type", "")
+                        if i_type == "customer_message":
+                            query = i.get("content", "") if isinstance(i, dict) else getattr(i, "content", "")
+                            break
+                
+                past_summaries = await knowledge_base.search_customer_context(
+                    query=query,
+                    customer_id=customer_id,
+                    company_id=company_id
+                )
+                
+                if past_summaries:
+                    customer_context = "\n".join([f"- {s}" for s in past_summaries])
+                    print(f"Found {len(past_summaries)} relevant past interactions for customer {customer_id}")
+            except Exception as e:
+                print(f"Customer context retrieval failed: {e}")
+
         # Generate response and determine resolution
         resolution = await self._generate_resolution(
             ticket,
@@ -106,7 +132,8 @@ class ResolverAgent(BaseAgent):
             routing_result,
             interactions,
             company_config,
-            kb_context
+            kb_context,
+            customer_context
         )
         
         # Save response interaction
@@ -122,6 +149,21 @@ class ResolverAgent(BaseAgent):
             resolution,
             session
         )
+        
+        # Context Persistence: Generate and index summary if resolved (not escalated)
+        if not resolution.get("needs_escalation", False) and customer_id and company_id:
+            summary = await self._generate_conversation_summary(
+                ticket,
+                interactions,
+                resolution.get("response", "")
+            )
+            if summary:
+                await self._index_ticket_summary(
+                    ticket_id=ticket_id,
+                    customer_id=customer_id,
+                    company_id=company_id,
+                    summary=summary
+                )
         
         return AgentResult(
             success=True,
@@ -139,7 +181,8 @@ class ResolverAgent(BaseAgent):
         routing_result: Dict[str, Any],
         interactions: list,
         company_config: Optional[CompanyConfig] = None,
-        kb_context: str = ""
+        kb_context: str = "",
+        customer_context: str = ""
     ) -> Dict[str, Any]:
         """
         Generate a response and determine if escalation is needed
@@ -159,7 +202,8 @@ class ResolverAgent(BaseAgent):
             company_config,
             is_first_response=len(interactions) <= 1,
             interactions=interactions,
-            kb_context=kb_context
+            kb_context=kb_context,
+            customer_context=customer_context
         )
         
         # Determine if escalation is needed
@@ -188,7 +232,8 @@ class ResolverAgent(BaseAgent):
         company_config: Optional[CompanyConfig] = None,
         is_first_response: bool = True,
         interactions: list = [],
-        kb_context: str = ""
+        kb_context: str = "",
+        customer_context: str = ""
     ) -> str:
         """
         Generate a draft response based on ticket context using OpenAI
@@ -278,6 +323,18 @@ class ResolverAgent(BaseAgent):
             === END KNOWLEDGE BASE ===
             """
 
+        # Customer History Context
+        customer_history_section = ""
+        if customer_context:
+            customer_history_section = f"""
+            === CUSTOMER HISTORY ===
+            This customer has interacted with us before. Here are relevant past interactions:
+            {customer_context}
+            
+            Use this context to provide personalized support. Reference past issues if relevant.
+            === END CUSTOMER HISTORY ===
+            """
+
         # Dynamic instructions based on conversation state
         greeting_instruction = "- Start with a friendly greeting ONLY if this is the start of the conversation." if is_first_response else "- DO NOT use a greeting as we are already talking."
         closing_instruction = "- Only use a closing if you are resolving the issue or ending the chat."
@@ -289,6 +346,8 @@ class ResolverAgent(BaseAgent):
 
 {rag_section}
 
+{customer_history_section}
+
 Important guidelines:
 - Be {tone} and conversational.
 {greeting_instruction}
@@ -296,6 +355,7 @@ Important guidelines:
 - Use natural, everyday Portuguese.
 {closing_instruction}
 - IF you used information from the Knowledge Base, explain it clearly to the user.
+- IF you have customer history context, use it to provide personalized support.
 
 {urgency_note}
 
@@ -474,3 +534,102 @@ Generate a response."""
             await audit_collection.insert_one(audit_data, session=session)
         else:
             await audit_collection.insert_one(audit_data)
+
+    async def _generate_conversation_summary(
+        self,
+        ticket: Dict[str, Any],
+        interactions: list,
+        resolution_response: str
+    ) -> Optional[str]:
+        """
+        Generate an AI summary of the conversation for context persistence.
+        
+        Args:
+            ticket: The ticket data
+            interactions: List of conversation interactions
+            resolution_response: The final resolution response
+            
+        Returns:
+            A concise summary of the conversation, or None if failed
+        """
+        from src.utils.openai_client import get_openai_client
+        
+        # Build conversation text
+        conversation_lines = []
+        for interaction in interactions:
+            i_type = interaction.get("type", "") if isinstance(interaction, dict) else getattr(interaction, "type", "")
+            i_content = interaction.get("content", "") if isinstance(interaction, dict) else getattr(interaction, "content", "")
+            
+            if i_type == "customer_message":
+                conversation_lines.append(f"Customer: {i_content}")
+            elif i_type == "agent_response":
+                conversation_lines.append(f"Agent: {i_content}")
+        
+        # Add final resolution
+        conversation_lines.append(f"Agent (Final): {resolution_response}")
+        
+        conversation_text = "\n".join(conversation_lines[-15:])  # Last 15 messages
+        
+        system_prompt = """You are a summarization assistant. Create a concise summary of the following customer support conversation.
+
+Focus on:
+- The customer's main issue/request
+- Key information shared (product names, order numbers, preferences)
+- How the issue was resolved
+- Any customer preferences or communication style noted
+
+Keep the summary under 150 words. Use bullet points for key facts."""
+
+        user_message = f"""Ticket Subject: {ticket.get('subject', 'N/A')}
+Category: {ticket.get('category', 'general')}
+
+Conversation:
+{conversation_text}
+
+Generate a concise summary for future reference."""
+
+        try:
+            client = get_openai_client()
+            summary = await client.chat_completion(
+                system_prompt=system_prompt,
+                user_message=user_message,
+                temperature=0.3,
+                max_tokens=200
+            )
+            return summary.strip()
+        except Exception as e:
+            print(f"Conversation summarization failed: {e}")
+            return None
+
+    async def _index_ticket_summary(
+        self,
+        ticket_id: str,
+        customer_id: str,
+        company_id: str,
+        summary: str
+    ) -> bool:
+        """
+        Index the ticket summary in the knowledge base for cross-ticket retrieval.
+        
+        Args:
+            ticket_id: The ticket identifier
+            customer_id: The customer identifier
+            company_id: The company identifier
+            summary: The conversation summary
+            
+        Returns:
+            True if successfully indexed
+        """
+        try:
+            success = await knowledge_base.add_ticket_summary(
+                summary=summary,
+                ticket_id=ticket_id,
+                customer_id=customer_id,
+                company_id=company_id
+            )
+            if success:
+                print(f"Indexed ticket summary for customer {customer_id}, ticket {ticket_id}")
+            return success
+        except Exception as e:
+            print(f"Failed to index ticket summary: {e}")
+            return False

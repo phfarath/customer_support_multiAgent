@@ -113,5 +113,89 @@ class KnowledgeBase:
         
         return []
 
+    async def add_ticket_summary(
+        self,
+        summary: str,
+        ticket_id: str,
+        customer_id: str,
+        company_id: str,
+        collection_name: str = "customer_summaries"
+    ) -> bool:
+        """
+        Index a ticket summary for cross-ticket context retrieval.
+        
+        Args:
+            summary: The AI-generated conversation summary
+            ticket_id: The resolved ticket ID
+            customer_id: The customer identifier
+            company_id: The company identifier
+            collection_name: ChromaDB collection for summaries
+            
+        Returns:
+            True if successfully indexed
+        """
+        collection = self.get_collection(collection_name)
+        
+        doc_id = f"{company_id}_{customer_id}_{ticket_id}"
+        metadata = {
+            "company_id": company_id,
+            "customer_id": customer_id,
+            "ticket_id": ticket_id,
+            "doc_type": "ticket_summary"
+        }
+        
+        try:
+            collection.add(
+                documents=[summary],
+                metadatas=[metadata],
+                ids=[doc_id]
+            )
+            return True
+        except Exception as e:
+            print(f"Failed to index ticket summary: {e}")
+            return False
+
+    async def search_customer_context(
+        self,
+        query: str,
+        customer_id: str,
+        company_id: str,
+        k: int = 3,
+        collection_name: str = "customer_summaries"
+    ) -> List[str]:
+        """
+        Search for relevant past ticket summaries for a specific customer.
+        
+        Args:
+            query: The search query (current ticket description/message)
+            customer_id: The customer to search history for
+            company_id: The company identifier
+            k: Number of results to return
+            collection_name: ChromaDB collection for summaries
+            
+        Returns:
+            List of relevant past ticket summaries
+        """
+        collection = self.get_collection(collection_name)
+        
+        try:
+            results = collection.query(
+                query_texts=[query],
+                n_results=k,
+                where={
+                    "$and": [
+                        {"company_id": company_id},
+                        {"customer_id": customer_id}
+                    ]
+                }
+            )
+            
+            if results and results['documents']:
+                return results['documents'][0]
+        except Exception as e:
+            print(f"Customer context search failed: {e}")
+        
+        return []
+
 # Singleton instance
 knowledge_base = KnowledgeBase()
