@@ -65,6 +65,58 @@ def render_escalated_inbox(company_id: str):
             st.write(f"**Assunto:** {ticket.get('subject', 'N/A')}")
             st.write(f"**Descrição:** {ticket.get('description', 'N/A')}")
             
+            # AI Decision Insights Section
+            st.markdown("### 🧠 AI Decision Insights")
+            
+            # Find the last interaction with AI metadata
+            last_ai_interaction = interactions_col.find_one(
+                {
+                    "ticket_id": selected_ticket_id,
+                    "ai_metadata": {"$exists": True, "$ne": None}
+                },
+                sort=[("created_at", -1)]
+            )
+            
+            if last_ai_interaction and last_ai_interaction.get("ai_metadata"):
+                ai_meta = last_ai_interaction["ai_metadata"]
+                
+                # Confidence Score with color indicator
+                confidence = ai_meta.get("confidence_score", 0)
+                if confidence >= 0.7:
+                    conf_color = "🟢"
+                    conf_status = "Alta"
+                elif confidence >= 0.4:
+                    conf_color = "🟡"
+                    conf_status = "Média"
+                else:
+                    conf_color = "🔴"
+                    conf_status = "Baixa"
+                
+                col_conf, col_type = st.columns(2)
+                with col_conf:
+                    st.metric("Confidence Score", f"{conf_color} {confidence:.0%} ({conf_status})")
+                with col_type:
+                    decision_type = ai_meta.get("decision_type", "N/A")
+                    type_emoji = "⚠️" if decision_type == "escalation" else "✅" if decision_type == "resolution" else "📋"
+                    st.write(f"**Tipo de Decisão:** {type_emoji} {decision_type.title() if decision_type else 'N/A'}")
+                
+                # Reasoning in expander
+                reasoning = ai_meta.get("reasoning")
+                if reasoning:
+                    with st.expander("📝 AI Reasoning (clique para expandir)"):
+                        st.write(reasoning)
+                
+                # Factors considered
+                factors = ai_meta.get("factors", [])
+                if factors:
+                    st.write("**Fatores Considerados:**")
+                    for factor in factors:
+                        st.write(f"  • {factor}")
+            else:
+                st.info("ℹ️ Nenhuma metadata de AI disponível para este ticket.")
+            
+            st.markdown("---")
+            
             # Interactions
             st.markdown("### 💬 Histórico de Conversas")
             interactions = list(interactions_col.find(

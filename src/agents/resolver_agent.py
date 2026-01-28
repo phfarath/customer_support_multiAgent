@@ -8,6 +8,7 @@ from src.models import (
     InteractionType,
     AuditLogCreate,
     AuditOperation,
+    AIDecisionMetadata,
 )
 from src.database import (
     get_collection,
@@ -207,11 +208,19 @@ class ResolverAgent(BaseAgent):
         )
         
         # Determine if escalation is needed
-        needs_escalation, escalation_reasons, confidence = self._check_escalation_needed(
+        needs_escalation, escalation_reasons, confidence, escalation_reasoning = self._check_escalation_needed(
             ticket,
             triage_result,
             interactions
         )
+        
+        # Build reasoning for decision
+        if needs_escalation:
+            reasoning = escalation_reasoning
+            decision_type = "escalation"
+        else:
+            reasoning = "Ticket resolved within normal parameters. Response generated based on context and knowledge base."
+            decision_type = "resolution"
         
         return {
             "response": response,
@@ -219,6 +228,8 @@ class ResolverAgent(BaseAgent):
             "confidence": confidence,
             "needs_escalation": needs_escalation,
             "escalation_reasons": escalation_reasons,
+            "reasoning": reasoning,
+            "decision_type": decision_type,
             "message": "Response generated" if not needs_escalation else "Escalation recommended"
         }
     
@@ -484,7 +495,13 @@ Generate a response."""
             reasons.append(f"Low triage confidence: {triage_confidence:.2f}")
             confidence = min(confidence - 0.1, 0.6)
         
-        return needs_escalation, reasons, confidence
+        # Build reasoning string
+        if needs_escalation:
+            reasoning = f"Escalation triggered due to: {', '.join(reasons)}"
+        else:
+            reasoning = "Ticket resolved within normal parameters"
+        
+        return needs_escalation, reasons, confidence, reasoning
     
     async def _save_response(
         self,
@@ -497,11 +514,21 @@ Generate a response."""
         """
         interactions_collection = get_collection(COLLECTION_INTERACTIONS)
         
+        # Build AI metadata for transparency
+        decision_type = resolution.get("decision_type", "resolution")
+        ai_metadata = AIDecisionMetadata(
+            confidence_score=resolution.get("confidence", 0.7),
+            reasoning=resolution.get("reasoning"),
+            decision_type=decision_type,
+            factors=resolution.get("escalation_reasons", [])
+        )
+        
         interaction = InteractionCreate(
             ticket_id=ticket_id,
             type=InteractionType.AGENT_RESPONSE,
             content=resolution["response"],
-            sentiment_score=0.0
+            sentiment_score=0.0,
+            ai_metadata=ai_metadata
         )
         
         interaction_data = interaction.model_dump()

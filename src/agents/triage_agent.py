@@ -11,6 +11,7 @@ from src.models import (
     InteractionType,
     AuditLogCreate,
     AuditOperation,
+    AIDecisionMetadata,
 )
 from src.database import (
     get_collection,
@@ -135,7 +136,9 @@ class TriageAgent(BaseAgent):
 
 4. Confidence (0.0 to 1.0): How confident are you in this analysis?
 
-Return your response as a JSON object with these fields: priority, category, sentiment, confidence"""
+5. Reasoning: Provide a brief explanation (1-2 sentences) of WHY you chose this priority and category.
+
+Return your response as a JSON object with these fields: priority, category, sentiment, confidence, reasoning"""
 
         user_message = f"""Ticket Information:
 Subject: {subject}
@@ -160,11 +163,22 @@ Analyze this ticket and provide the triage assessment."""
             sentiment = self._validate_sentiment(result.get("sentiment", 0.0))
             confidence = self._validate_confidence(result.get("confidence", 0.7))
             
+            # Build reasoning - use AI's reasoning or generate default
+            reasoning = result.get("reasoning", f"Classified as {priority} priority, {category} category based on content analysis.")
+            factors = [
+                f"Priority: {priority}",
+                f"Category: {category}",
+                f"Sentiment: {sentiment:.2f}",
+                f"Confidence: {confidence:.0%}"
+            ]
+            
             return {
                 "priority": priority,
                 "category": category,
                 "sentiment": sentiment,
                 "confidence": confidence,
+                "reasoning": reasoning,
+                "factors": factors,
                 "decisions": [
                     f"Priority set to {priority}",
                     f"Category: {category}",
@@ -237,11 +251,22 @@ Analyze this ticket and provide the triage assessment."""
         # Confidence based on clarity of the issue
         confidence = self._calculate_confidence(text, priority, sentiment)
         
+        # Build fallback reasoning
+        reasoning = f"Classified as {priority} priority, {category} category using rule-based analysis (AI unavailable)."
+        factors = [
+            f"Priority: {priority} (rule-based)",
+            f"Category: {category} (rule-based)",
+            f"Sentiment: {sentiment:.2f} (rule-based)",
+            f"Confidence: {confidence:.0%}"
+        ]
+        
         return {
             "priority": priority,
             "category": category,
             "sentiment": sentiment,
             "confidence": confidence,
+            "reasoning": reasoning,
+            "factors": factors,
             "decisions": [
                 f"Priority set to {priority} (fallback)",
                 f"Category: {category} (fallback)",
@@ -419,11 +444,20 @@ Analyze this ticket and provide the triage assessment."""
         # Create interaction record
         interactions_collection = get_collection(COLLECTION_INTERACTIONS)
         
+        # Build AI metadata for transparency
+        ai_metadata = AIDecisionMetadata(
+            confidence_score=analysis.get("confidence", 0.7),
+            reasoning=analysis.get("reasoning"),
+            decision_type="triage",
+            factors=analysis.get("factors", [])
+        )
+        
         interaction = InteractionCreate(
             ticket_id=ticket_id,
             type=InteractionType.AGENT_RESPONSE,
             content=f"Ticket triaged as {analysis['priority']} priority, category: {analysis['category']}",
-            sentiment_score=analysis["sentiment"]
+            sentiment_score=analysis["sentiment"],
+            ai_metadata=ai_metadata
         )
         
         interaction_data = interaction.model_dump()

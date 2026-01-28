@@ -55,6 +55,11 @@ Histórico de mensagens e ações dentro de um ticket.
 | `content` | String | Sim | Conteúdo textual da interação |
 | `channel` | String | Não | Canal por onde ocorreu (`telegram`, etc) |
 | `sentiment_score` | Float | Sim | Score de sentimento (0.0 a 1.0) |
+| `ai_metadata` | Object | Não | Metadata de decisão AI para transparência (ver sub-campos) |
+| `ai_metadata.confidence_score` | Float | Não | Score de confiança da decisão (0.0 a 1.0) |
+| `ai_metadata.reasoning` | String | Não | Explicação textual da decisão tomada |
+| `ai_metadata.decision_type` | String | Não | Tipo: `triage`, `routing`, `resolution`, `escalation` |
+| `ai_metadata.factors` | Array[String] | Não | Lista de fatores considerados na decisão |
 | `created_at` | DateTime | Sim | Data e hora da interação |
 
 ---
@@ -164,6 +169,7 @@ Registra as decisões tomadas pelo agente roteador (Router Agent).
 | `target_team` | String | Sim | Time/Departamento de destino |
 | `confidence` | Float | Sim | Nível de confiança da decisão |
 | `reasons` | Array[String]| Sim | Lista de justificativas para a decisão |
+| `reasoning` | String | Não | Explicação textual da decisão de roteamento |
 | `created_at` | DateTime | Sim | Data da decisão |
 
 ---
