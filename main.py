@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from src.config import settings
@@ -15,6 +14,8 @@ from src.api import router, ingest_router, telegram_router, company_router, huma
 from src.api.api_key_routes import router as api_key_router
 from src.api.health_routes import router as health_router
 from src.utils.monitoring import init_sentry, flush_events
+from src.middleware.rate_limiter import get_rate_limit_key
+from src.middleware.cors import get_cors_origins
 
 # Configure logging
 logging.basicConfig(
@@ -22,8 +23,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+# Initialize rate limiter with fingerprint-based key (IP + User-Agent + API Key)
+limiter = Limiter(key_func=get_rate_limit_key, default_limits=["100/minute"])
 
 
 @asynccontextmanager
@@ -74,10 +75,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Add SlowAPI middleware
 app.add_middleware(SlowAPIMiddleware)
 
-# Add CORS middleware (HARDENED - specific origins only)
+# Add CORS middleware (HARDENED - specific origins only, localhost filtered in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allowed_origins,  # Whitelist specific origins
+    allow_origins=get_cors_origins(),              # Whitelist specific origins (localhost filtered in production)
     allow_credentials=True,                        # Allow credentials (cookies, authorization headers)
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specific methods only
     allow_headers=[                                # Specific headers only

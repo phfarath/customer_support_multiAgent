@@ -13,6 +13,7 @@ Este diretório contém documentação detalhada de features implementadas no pr
 - [Input Sanitization](2026-01-23_18-30_input-sanitization.md) - Prevenção de XSS e SQL Injection
 - [Rate Limiting](2026-01-23_18-30_rate-limiting.md) - Prevenção de DoS e abuso de API
 - [CORS Hardening](2026-01-23_18-30_cors-hardening.md) - Controle de acesso cross-origin
+- [API Security Hardening](2026-01-29_14-00_api-security-hardening.md) - Validação de produção, webhook signature, rate limiting avançado
 
 ### Testes
 
@@ -98,6 +99,7 @@ Links para documentação relacionada.
 | Context Persistence | ✅ 100% | 2026-01-27 |
 | Handoff Warnings | ✅ 100% | 2026-01-27 |
 | Confidence Transparency | ✅ 100% | 2026-01-27 |
+| API Security Hardening | ✅ 100% | 2026-01-29 |
 
 ---
 
@@ -121,5 +123,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-27
-**Versão do documento:** 1.2
+**Última atualização:** 2026-01-29
+**Versão do documento:** 1.3
