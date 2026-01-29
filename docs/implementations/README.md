@@ -14,6 +14,7 @@ Este diretório contém documentação detalhada de features implementadas no pr
 - [Rate Limiting](2026-01-23_18-30_rate-limiting.md) - Prevenção de DoS e abuso de API
 - [CORS Hardening](2026-01-23_18-30_cors-hardening.md) - Controle de acesso cross-origin
 - [API Security Hardening](2026-01-29_14-00_api-security-hardening.md) - Validação de produção, webhook signature, rate limiting avançado
+- [AI Guardrails & Prompt Security](2026-01-29_15-30_ai-guardrails-prompt-security.md) - Proteção contra prompt injection, jailbreak, content moderation
 
 ### Testes
 
@@ -100,6 +101,7 @@ Links para documentação relacionada.
 | Handoff Warnings | ✅ 100% | 2026-01-27 |
 | Confidence Transparency | ✅ 100% | 2026-01-27 |
 | API Security Hardening | ✅ 100% | 2026-01-29 |
+| AI Guardrails & Prompt Security | ✅ 100% | 2026-01-29 |
 
 ---
 
