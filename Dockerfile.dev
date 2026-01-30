@@ -8,7 +8,7 @@
 # - Mountable volumes for live code editing
 # ============================================================
 
-FROM python:3.10.13-slim
+FROM python:3.10-slim
 
 # Metadata
 LABEL maintainer="customer-support-team"
