@@ -20,7 +20,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/", response_model=APIKey)
 @limiter.limit("10/minute")  # Admin operation
 async def create_api_key(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     company_id: str,
     name: str,
     permissions: list[str] = ["read", "write"],
@@ -70,7 +70,7 @@ async def create_api_key(
 @router.get("/", response_model=list[dict])
 @limiter.limit("100/minute")  # Read operation
 async def list_api_keys(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ):
     """
@@ -101,7 +101,7 @@ async def list_api_keys(
 @router.delete("/{key_id}")
 @limiter.limit("10/minute")  # Admin operation
 async def revoke_api_key(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     key_id: str,
     api_key: dict = Depends(verify_api_key)
 ):

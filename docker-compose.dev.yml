@@ -72,6 +72,7 @@ services:
 
     volumes:
       - ./src:/app/src
+      - ./main.py:/app/main.py
       - ./chroma_db:/app/chroma_db
       - ./logs:/app/logs
       - ./scripts:/app/scripts
@@ -119,6 +120,7 @@ services:
 
     volumes:
       - ./src:/app/src
+      - ./run_telegram_bot.py:/app/run_telegram_bot.py
       - ./chroma_db:/app/chroma_db
       - ./logs:/app/logs
 
@@ -157,6 +159,7 @@ services:
 
     volumes:
       - ./src:/app/src
+      - ./main.py:/app/main.py
       - ./logs:/app/logs
 
     depends_on:

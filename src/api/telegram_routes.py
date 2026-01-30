@@ -195,7 +195,7 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
 @router.get("/webhook/info")
 @limiter.limit("30/minute")  # Admin endpoint
 async def get_webhook_info(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """
@@ -223,7 +223,7 @@ async def get_webhook_info(
 @router.post("/webhook/set")
 @limiter.limit("5/minute")  # Critical admin operation
 async def set_webhook(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     webhook_url: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -253,7 +253,7 @@ async def set_webhook(
 @router.post("/webhook/delete")
 @limiter.limit("5/minute")  # Critical admin operation
 async def delete_webhook(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """
@@ -281,7 +281,7 @@ async def delete_webhook(
 @router.get("/bot/info")
 @limiter.limit("30/minute")  # Admin endpoint
 async def get_bot_info(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """

@@ -115,8 +115,8 @@ def _generate_warning_message(
 @router.post("/ingest-message", response_model=IngestMessageResponse)
 @limiter.limit("20/minute")  # Rate limit: 20 messages per minute
 async def ingest_message(
-    http_request: Request,  # Required by slowapi
-    request: IngestMessageRequest,
+    request: Request,  # Required by slowapi
+    payload: IngestMessageRequest,
     api_key: dict = Depends(verify_api_key)
 ) -> IngestMessageResponse:
     """

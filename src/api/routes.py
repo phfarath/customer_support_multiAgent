@@ -49,7 +49,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/tickets", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 @limiter.limit("30/minute")  # Write operation
 async def create_ticket(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_data: TicketCreate,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -137,7 +137,7 @@ async def create_ticket(
 @router.post("/run_pipeline/{ticket_id}", response_model=Dict[str, Any])
 @limiter.limit("10/minute")  # Heavy operation (expensive)
 async def run_pipeline(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -199,7 +199,7 @@ async def run_pipeline(
 @router.get("/tickets/{ticket_id}", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -242,7 +242,7 @@ async def get_ticket(
 @router.get("/tickets/{ticket_id}/audit", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_audit(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -287,7 +287,7 @@ async def get_ticket_audit(
 @router.get("/tickets/{ticket_id}/interactions", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_interactions(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -332,7 +332,7 @@ async def get_ticket_interactions(
 @router.get("/tickets/{ticket_id}/agent_states", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_agent_states(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -377,7 +377,7 @@ async def get_ticket_agent_states(
 @router.get("/tickets", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def list_tickets(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     status: TicketStatus = None,
     priority: TicketPriority = None,
     limit: int = 50,

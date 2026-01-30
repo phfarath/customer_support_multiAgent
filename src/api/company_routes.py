@@ -27,7 +27,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/", response_model=CompanyConfig)
 @limiter.limit("10/minute")  # Admin operation
 async def create_company_config(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     config: CompanyConfigCreate,
     api_key: dict = Depends(verify_api_key)
 ) -> CompanyConfig:
@@ -97,7 +97,7 @@ async def create_company_config(
 @router.get("/{company_id}", response_model=CompanyConfig)
 @limiter.limit("200/minute")  # Read operation
 async def get_company_config(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     company_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> CompanyConfig:
@@ -147,7 +147,7 @@ async def get_company_config(
 @router.put("/{company_id}", response_model=CompanyConfig)
 @limiter.limit("30/minute")  # Write operation
 async def update_company_config(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     company_id: str,
     config: CompanyConfigUpdate,
     api_key: dict = Depends(verify_api_key)
@@ -232,7 +232,7 @@ async def update_company_config(
 @router.delete("/{company_id}")
 @limiter.limit("5/minute")  # Critical admin operation
 async def delete_company_config(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     company_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -283,7 +283,7 @@ async def delete_company_config(
 @router.get("/", response_model=List[CompanyConfig])
 @limiter.limit("200/minute")  # Read operation
 async def list_company_configs(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> List[CompanyConfig]:
     """

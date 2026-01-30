@@ -1,9 +1,10 @@
 """
 Application Configuration
 """
+import json
 from pydantic_settings import BaseSettings
-from pydantic import model_validator
-from typing import Optional, List
+from pydantic import model_validator, field_validator
+from typing import Optional, List, Any
 
 
 class Settings(BaseSettings):
@@ -81,6 +82,24 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def parse_cors_allowed_origins(cls, v: Any) -> Any:
+        # Accept comma-separated strings or JSON arrays in env vars.
+        if v is None:
+            return v
+        if isinstance(v, str):
+            raw = v.strip()
+            if not raw:
+                return []
+            if raw.startswith("["):
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        return v
 
     @model_validator(mode='after')
     def validate_production_settings(self) -> 'Settings':
