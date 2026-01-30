@@ -19,11 +19,35 @@ def render_escalated_inbox(company_id: str):
     tickets_col = get_collection(COLLECTION_TICKETS)
     interactions_col = get_collection(COLLECTION_INTERACTIONS)
 
-    # Fetch escalated tickets - CRITICAL: Filter by company_id for security
-    escalated = list(tickets_col.find({
+    # Filters section
+    st.markdown("### 🔍 Filtros")
+    col_cat, col_tags = st.columns(2)
+
+    with col_cat:
+        category_filter = st.selectbox(
+            "Categoria",
+            ["Todas", "billing", "tech", "general"],
+            index=0
+        )
+
+    with col_tags:
+        # Get all unique tags for this company
+        all_tags = tickets_col.distinct("tags", {"company_id": company_id})
+        all_tags = [t for t in all_tags if t]  # Remove empty
+        tag_filter = st.multiselect("Tags", all_tags, default=[])
+
+    # Build query
+    query = {
         "status": TicketStatus.ESCALATED,
-        "company_id": company_id  # ← CRITICAL SECURITY FIX
-    }).sort("created_at", -1).limit(50))
+        "company_id": company_id
+    }
+    if category_filter != "Todas":
+        query["category"] = category_filter
+    if tag_filter:
+        query["tags"] = {"$in": tag_filter}
+
+    # Fetch escalated tickets - CRITICAL: Filter by company_id for security
+    escalated = list(tickets_col.find(query).sort("created_at", -1).limit(50))
     
     if not escalated:
         st.info("🎉 Nenhum ticket escalado no momento!")
@@ -50,20 +74,29 @@ def render_escalated_inbox(company_id: str):
         
         if ticket:
             st.markdown("---")
-            
+
             # Ticket Info
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.write(f"**Prioridade:** {ticket.get('priority', 'P3')}")
             with col2:
                 st.write(f"**Canal:** {ticket.get('channel', 'N/A')}")
             with col3:
+                category = ticket.get('category', 'N/A')
+                cat_emoji = "💰" if category == "billing" else "🔧" if category == "tech" else "📋"
+                st.write(f"**Categoria:** {cat_emoji} {category}")
+            with col4:
                 created = ticket.get('created_at')
                 if created:
                     st.write(f"**Criado:** {created.strftime('%d/%m %H:%M') if isinstance(created, datetime) else str(created)[:16]}")
-            
+
             st.write(f"**Assunto:** {ticket.get('subject', 'N/A')}")
             st.write(f"**Descrição:** {ticket.get('description', 'N/A')}")
+
+            # Display tags
+            tags = ticket.get('tags', [])
+            if tags:
+                st.write("**Tags:** " + " ".join([f"`{tag}`" for tag in tags]))
             
             # AI Decision Insights Section
             st.markdown("### 🧠 AI Decision Insights")

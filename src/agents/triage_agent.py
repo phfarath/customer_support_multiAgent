@@ -129,16 +129,23 @@ class TriageAgent(BaseAgent):
    - tech: Technical problems, bugs, app/website issues, login problems
    - general: General inquiries, account questions, how-to
 
-3. Sentiment (-1.0 to 1.0):
+3. Tags (array of 1-5 specific tags for granular classification):
+   Examples of good tags:
+   - billing: "refund", "payment_failed", "duplicate_charge", "invoice", "pricing", "subscription"
+   - tech: "login_issue", "bug", "app_crash", "slow_performance", "error_message", "integration"
+   - general: "account_question", "how_to", "feedback", "feature_request", "complaint"
+   Use lowercase with underscores. Be specific and relevant.
+
+4. Sentiment (-1.0 to 1.0):
    - -1.0 to -0.3: Very negative to negative
    - -0.3 to 0.3: Neutral
    - 0.3 to 1.0: Positive to very positive
 
-4. Confidence (0.0 to 1.0): How confident are you in this analysis?
+5. Confidence (0.0 to 1.0): How confident are you in this analysis?
 
-5. Reasoning: Provide a brief explanation (1-2 sentences) of WHY you chose this priority and category.
+6. Reasoning: Provide a brief explanation (1-2 sentences) of WHY you chose this priority and category.
 
-Return your response as a JSON object with these fields: priority, category, sentiment, confidence, reasoning"""
+Return your response as a JSON object with these fields: priority, category, tags, sentiment, confidence, reasoning"""
 
         user_message = f"""Ticket Information:
 Subject: {subject}
@@ -160,21 +167,24 @@ Analyze this ticket and provide the triage assessment."""
             # Validate and normalize the results
             priority = self._validate_priority(result.get("priority", "P3"))
             category = self._validate_category(result.get("category", "general"))
+            tags = self._validate_tags(result.get("tags", []))
             sentiment = self._validate_sentiment(result.get("sentiment", 0.0))
             confidence = self._validate_confidence(result.get("confidence", 0.7))
-            
+
             # Build reasoning - use AI's reasoning or generate default
             reasoning = result.get("reasoning", f"Classified as {priority} priority, {category} category based on content analysis.")
             factors = [
                 f"Priority: {priority}",
                 f"Category: {category}",
+                f"Tags: {', '.join(tags) if tags else 'none'}",
                 f"Sentiment: {sentiment:.2f}",
                 f"Confidence: {confidence:.0%}"
             ]
-            
+
             return {
                 "priority": priority,
                 "category": category,
+                "tags": tags,
                 "sentiment": sentiment,
                 "confidence": confidence,
                 "reasoning": reasoning,
@@ -182,6 +192,7 @@ Analyze this ticket and provide the triage assessment."""
                 "decisions": [
                     f"Priority set to {priority}",
                     f"Category: {category}",
+                    f"Tags: {', '.join(tags) if tags else 'none'}",
                     f"Sentiment: {sentiment:.2f}"
                 ]
             }
@@ -219,6 +230,21 @@ Analyze this ticket and provide the triage assessment."""
             return max(0.0, min(1.0, confidence))
         except (ValueError, TypeError):
             return 0.7
+
+    def _validate_tags(self, tags: Any) -> list:
+        """Validate and normalize tags array"""
+        if not isinstance(tags, list):
+            return []
+        # Filter to valid strings, lowercase, max 5 tags
+        valid_tags = []
+        for tag in tags[:5]:  # Max 5 tags
+            if isinstance(tag, str):
+                # Sanitize: lowercase, replace spaces with underscore, alphanumeric only
+                sanitized = tag.lower().strip().replace(" ", "_")
+                sanitized = "".join(c for c in sanitized if c.isalnum() or c == "_")
+                if sanitized and len(sanitized) <= 50:  # Max 50 chars per tag
+                    valid_tags.append(sanitized)
+        return valid_tags
     
     def _analyze_ticket_fallback(
         self,
@@ -227,42 +253,47 @@ Analyze this ticket and provide the triage assessment."""
     ) -> Dict[str, Any]:
         """
         Fallback rule-based analysis when OpenAI is unavailable
-        
+
         Args:
             ticket: Ticket data
             interactions: List of previous interactions
-            
+
         Returns:
-            Dict with priority, category, sentiment, and confidence
+            Dict with priority, category, tags, sentiment, and confidence
         """
         description = ticket.get("description", "").lower()
         subject = ticket.get("subject", "").lower()
         text = f"{subject} {description}"
-        
+
         # Priority analysis (keyword-based)
         priority = self._determine_priority(text)
-        
+
         # Category analysis
         category = self._determine_category(text)
-        
+
+        # Tags generation (keyword-based)
+        tags = self._generate_tags(text, category)
+
         # Sentiment analysis (simple keyword-based)
         sentiment = self._analyze_sentiment(text)
-        
+
         # Confidence based on clarity of the issue
         confidence = self._calculate_confidence(text, priority, sentiment)
-        
+
         # Build fallback reasoning
         reasoning = f"Classified as {priority} priority, {category} category using rule-based analysis (AI unavailable)."
         factors = [
             f"Priority: {priority} (rule-based)",
             f"Category: {category} (rule-based)",
+            f"Tags: {', '.join(tags) if tags else 'none'} (rule-based)",
             f"Sentiment: {sentiment:.2f} (rule-based)",
             f"Confidence: {confidence:.0%}"
         ]
-        
+
         return {
             "priority": priority,
             "category": category,
+            "tags": tags,
             "sentiment": sentiment,
             "confidence": confidence,
             "reasoning": reasoning,
@@ -270,6 +301,7 @@ Analyze this ticket and provide the triage assessment."""
             "decisions": [
                 f"Priority set to {priority} (fallback)",
                 f"Category: {category} (fallback)",
+                f"Tags: {', '.join(tags) if tags else 'none'} (fallback)",
                 f"Sentiment: {sentiment:.2f} (fallback)"
             ]
         }
@@ -309,10 +341,10 @@ Analyze this ticket and provide the triage assessment."""
     def _determine_category(self, text: str) -> str:
         """
         Determine ticket category based on keywords
-        
+
         Args:
             text: Ticket text to analyze
-            
+
         Returns:
             Category string
         """
@@ -321,22 +353,103 @@ Analyze this ticket and provide the triage assessment."""
             "invoice", "refund", "reembolso", "price", "preço",
             "duplicate", "duplicado", "cartão", "card"
         ]
-        
+
         tech_keywords = [
             "crash", "erro", "error", "bug", "app", "website",
             "login", "senha", "password", "não funciona", "not working",
             "lento", "slow", "instalação", "install"
         ]
-        
+
         for keyword in billing_keywords:
             if keyword in text:
                 return "billing"
-        
+
         for keyword in tech_keywords:
             if keyword in text:
                 return "tech"
-        
+
         return "general"
+
+    def _generate_tags(self, text: str, category: str) -> list:
+        """
+        Generate granular tags based on keywords found in text
+
+        Args:
+            text: Ticket text to analyze
+            category: Already determined category
+
+        Returns:
+            List of tags (max 5)
+        """
+        tags = []
+
+        # Tag mapping: keyword -> tag
+        tag_mappings = {
+            # Billing tags
+            "refund": "refund",
+            "reembolso": "refund",
+            "charge": "payment_issue",
+            "cobrança": "payment_issue",
+            "payment": "payment_issue",
+            "pagamento": "payment_issue",
+            "fatura": "invoice",
+            "invoice": "invoice",
+            "duplicate": "duplicate_charge",
+            "duplicado": "duplicate_charge",
+            "cartão": "credit_card",
+            "card": "credit_card",
+            "preço": "pricing",
+            "price": "pricing",
+            "assinatura": "subscription",
+            "subscription": "subscription",
+            "cancel": "cancellation",
+            "cancelar": "cancellation",
+            # Tech tags
+            "login": "login_issue",
+            "senha": "password_issue",
+            "password": "password_issue",
+            "crash": "app_crash",
+            "bug": "bug",
+            "erro": "error_message",
+            "error": "error_message",
+            "lento": "slow_performance",
+            "slow": "slow_performance",
+            "app": "mobile_app",
+            "website": "website",
+            "instalação": "installation",
+            "install": "installation",
+            "integração": "integration",
+            "integration": "integration",
+            "api": "api_issue",
+            # General tags
+            "como": "how_to",
+            "how to": "how_to",
+            "pergunta": "question",
+            "question": "question",
+            "feedback": "feedback",
+            "sugestão": "feature_request",
+            "suggestion": "feature_request",
+            "feature": "feature_request",
+            "reclamação": "complaint",
+            "complaint": "complaint",
+            "conta": "account_issue",
+            "account": "account_issue",
+        }
+
+        # Find matching tags
+        found_tags = set()
+        for keyword, tag in tag_mappings.items():
+            if keyword in text:
+                found_tags.add(tag)
+
+        # Add category as a tag if no specific tags found
+        if not found_tags:
+            found_tags.add(f"{category}_general")
+
+        # Convert to list and limit to 5
+        tags = list(found_tags)[:5]
+
+        return tags
     
     def _analyze_sentiment(self, text: str) -> float:
         """
@@ -420,11 +533,13 @@ Analyze this ticket and provide the triage assessment."""
             analysis: Analysis results
             session: Optional MongoDB session
         """
-        # Update ticket with priority
+        # Update ticket with priority, category, and tags
         tickets_collection = get_collection(COLLECTION_TICKETS)
-        
+
         update_data = {
             "priority": analysis["priority"],
+            "category": analysis.get("category", "general"),
+            "tags": analysis.get("tags", []),
             "current_phase": TicketPhase.ROUTING,
             "updated_at": datetime.utcnow()
         }

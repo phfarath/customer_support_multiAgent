@@ -34,10 +34,16 @@ Armazena os chamados de suporte (tickets). É a entidade central do sistema.
 | `priority` | String | Sim | Prioridade (`P1`, `P2`, `P3`) |
 | `status` | String | Sim | Status atual (`open`, `in_progress`, `escalated`, `resolved`) |
 | `current_phase` | String | Sim | Fase do pipeline (`triage`, `routing`, `resolution`, `escalation`) |
+| `category` | String | Não | Categoria do ticket (`billing`, `tech`, `general`). Gerado pelo TriageAgent. |
+| `tags` | Array[String] | Não | Tags granulares para classificação (ex: `["refund", "payment_issue"]`). Máx 5 tags. |
 | `interactions_count` | Int | Sim | Contador de interações |
 | `lock_version` | Int | Sim | Controle de concorrência otimista |
 | `created_at` | DateTime | Sim | Data de criação |
 | `updated_at` | DateTime | Sim | Data da última atualização |
+
+**Índices adicionais para tags:**
+- `tags`: Multikey index para busca eficiente por tags
+- `company_id, category`: Índice composto para filtro por categoria
 
 ---
 

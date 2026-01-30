@@ -27,6 +27,10 @@ Este diretório contém documentação detalhada de features implementadas no pr
 - [Handoff Warnings](2026-01-27_20-50_handoff-warnings.md) - Avisos proativos antes de escalação para humano
 - [Confidence Transparency](2026-01-27_23-02_confidence-transparency.md) - Exposição de scores de confiança e reasoning da AI
 
+### Classificação e Reporting
+
+- [Automated Tagging](2026-01-30_10-00_automated-tagging.md) - Tags granulares automáticas para classificação de tickets
+
 ---
 
 ## 📝 Convenções de Nomenclatura
@@ -104,6 +108,7 @@ Links para documentação relacionada.
 | API Security Hardening | ✅ 100% | 2026-01-29 |
 | AI Guardrails & Prompt Security | ✅ 100% | 2026-01-29 |
 | Infrastructure Security | ✅ 100% | 2026-01-29 |
+| Automated Tagging | ✅ 100% | 2026-01-30 |
 
 ---
 
@@ -127,5 +132,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-29
-**Versão do documento:** 1.3
+**Última atualização:** 2026-01-30
+**Versão do documento:** 1.4

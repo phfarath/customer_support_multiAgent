@@ -79,6 +79,8 @@ async def ensure_indexes():
     # Tickets indexes
     await db[COLLECTION_TICKETS].create_index([("ticket_id", 1)], unique=True)
     await db[COLLECTION_TICKETS].create_index([("current_phase", 1), ("status", 1)])
+    await db[COLLECTION_TICKETS].create_index([("company_id", 1), ("category", 1)])
+    await db[COLLECTION_TICKETS].create_index([("tags", 1)])  # Multikey index for tag filtering
     
     # Agent states indexes - drop incorrect index if exists and create correct composite index
     try:

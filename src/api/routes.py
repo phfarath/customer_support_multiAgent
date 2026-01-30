@@ -14,6 +14,7 @@ from src.models import (
     TicketStatus,
     TicketPriority,
     TicketChannel,
+    TicketCategory,
 )
 from src.database import (
     get_collection,
@@ -380,6 +381,8 @@ async def list_tickets(
     request: Request,  # Required by slowapi
     status: TicketStatus = None,
     priority: TicketPriority = None,
+    category: TicketCategory = None,
+    tags: str = None,
     limit: int = 50,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -391,6 +394,8 @@ async def list_tickets(
     Args:
         status: Filter by status
         priority: Filter by priority
+        category: Filter by category (billing, tech, general)
+        tags: Filter by tags (comma-separated, e.g. "refund,payment_issue")
         limit: Maximum number of tickets to return
         api_key: Authenticated API key (auto-injected)
 
@@ -405,14 +410,21 @@ async def list_tickets(
         filter_dict["status"] = status
     if priority:
         filter_dict["priority"] = priority
-    
+    if category:
+        filter_dict["category"] = category
+    if tags:
+        # Parse comma-separated tags and filter tickets containing ANY of them
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            filter_dict["tags"] = {"$in": tag_list}
+
     cursor = collection.find(filter_dict).sort("created_at", -1).limit(limit)
-    
+
     tickets = []
     async for ticket in cursor:
         ticket["_id"] = str(ticket["_id"])
         tickets.append(ticket)
-    
+
     return {
         "success": True,
         "tickets": tickets,
