@@ -38,6 +38,10 @@ from src.utils.sanitization import (
     sanitize_email,
     sanitize_company_id
 )
+from src.security.error_handler import SecureError
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api", tags=["ingest"])
@@ -134,8 +138,6 @@ async def ingest_message(
     Returns:
         Response with reply_text, escalation status, and ticket information
     """
-    import logging
-    logger = logging.getLogger(__name__)
     logger.info(f"Received ingest message request: {request}")
 
     # Enforce company isolation
@@ -308,12 +310,17 @@ async def ingest_message(
         )
         
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid request: {str(e)}"
+        logger.warning(f"Ingest validation error: {e}")
+        raise SecureError(
+            "E009",
+            message="Invalid message format. Please check your input.",
+            internal_message=str(e),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process message: {str(e)}"
+        logger.error("Failed to process ingest message", exc_info=True)
+        raise SecureError(
+            "E001",
+            message="Failed to process message. Please try again later.",
+            internal_message=str(e),
+            context={"channel": request.channel.value if hasattr(request, 'channel') else None},
         )

@@ -1,6 +1,7 @@
 """
 FastAPI routes for the customer support system
 """
+import logging
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import Dict, Any
 from datetime import datetime
@@ -29,6 +30,14 @@ from src.utils.sanitization import (
     sanitize_text,
     sanitize_identifier,
 )
+from src.security.error_handler import (
+    SecureError,
+    raise_not_found,
+    raise_validation_error,
+    raise_internal_error,
+)
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api", tags=["tickets"])
@@ -169,14 +178,21 @@ async def run_pipeline(
             "results": results
         }
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
+        # Log the actual error internally, return safe message
+        logger.warning(f"Pipeline validation error for ticket {ticket_id}: {e}")
+        raise SecureError(
+            "E007",
+            message=f"Ticket {ticket_id} not found or invalid.",
+            internal_message=str(e),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution failed: {str(e)}"
+        # Log full error details internally, return generic message
+        logger.error(f"Pipeline execution failed for ticket {ticket_id}", exc_info=True)
+        raise SecureError(
+            "E001",
+            message="Pipeline execution failed. Please try again later.",
+            internal_message=str(e),
+            context={"ticket_id": ticket_id},
         )
 
 

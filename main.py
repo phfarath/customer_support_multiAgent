@@ -14,13 +14,17 @@ from src.api import router, ingest_router, telegram_router, company_router, huma
 from src.api.api_key_routes import router as api_key_router
 from src.api.health_routes import router as health_router
 from src.utils.monitoring import init_sentry, flush_events
+from src.utils.secure_logging import configure_secure_logging
 from src.middleware.rate_limiter import get_rate_limit_key
 from src.middleware.cors import get_cors_origins
+from src.middleware.security_headers import SecurityHeadersMiddleware
+from src.security.error_handler import secure_exception_handler
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Configure secure logging (masks sensitive data automatically)
+configure_secure_logging(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format_type='text',  # Use 'json' in production for log aggregation
+    include_trace_id=True,
 )
 
 # Initialize rate limiter with fingerprint-based key (IP + User-Agent + API Key)
@@ -91,6 +95,16 @@ app.add_middleware(
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining"],  # Expose rate limit info
     max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# Add Security Headers middleware (CSP, X-Frame-Options, HSTS, etc.)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    environment=settings.environment,
+    excluded_paths=["/health", "/api/health", "/metrics"],
+)
+
+# Add global exception handler (never exposes internal details)
+app.add_exception_handler(Exception, secure_exception_handler)
 
 # Include routes
 app.include_router(health_router)  # Health checks (no auth required)
