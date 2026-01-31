@@ -30,6 +30,8 @@ class InteractionBase(BaseModel):
     channel: Optional[str] = None
     sentiment_score: float = 0.0
     ai_metadata: Optional[AIDecisionMetadata] = None  # AI decision transparency
+    pii_detected: bool = False  # Whether PII was detected and redacted (LGPD/GDPR)
+    pii_types: List[str] = []  # Types of PII detected (e.g., ["cpf", "email"])
 
 
 class InteractionCreate(InteractionBase):

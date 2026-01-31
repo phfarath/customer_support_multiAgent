@@ -33,6 +33,7 @@ from src.models import CompanyConfig
 from src.middleware.auth import verify_api_key
 from src.utils.sanitization import (
     sanitize_text,
+    sanitize_text_with_pii_detection,
     sanitize_identifier,
     sanitize_phone,
     sanitize_email,
@@ -138,28 +139,32 @@ async def ingest_message(
     Returns:
         Response with reply_text, escalation status, and ticket information
     """
-    logger.info(f"Received ingest message request: {request}")
+    logger.info(f"Received ingest message request: {payload}")
 
     # Enforce company isolation
-    if request.company_id and request.company_id != api_key["company_id"]:
+    if payload.company_id and payload.company_id != api_key["company_id"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot ingest message for different company"
         )
 
     # Set company_id from API key if not provided
-    if not request.company_id:
-        request.company_id = api_key["company_id"]
+    if not payload.company_id:
+        payload.company_id = api_key["company_id"]
 
     # SANITIZE ALL INPUTS
     try:
-        company_id = sanitize_company_id(request.company_id)
-        text = sanitize_text(request.text, max_length=4000)
-        external_user_id = sanitize_identifier(request.external_user_id)
+        company_id = sanitize_company_id(payload.company_id)
+        external_user_id = sanitize_identifier(payload.external_user_id)
+
+        # Sanitize text WITH PII detection for LGPD/GDPR compliance
+        text, pii_detected, pii_types = sanitize_text_with_pii_detection(
+            payload.text, max_length=4000
+        )
 
         # Sanitize optional fields
-        customer_phone = sanitize_phone(request.customer_phone) if request.customer_phone else None
-        customer_email = sanitize_email(request.customer_email) if request.customer_email else None
+        customer_phone = sanitize_phone(payload.customer_phone) if payload.customer_phone else None
+        customer_email = sanitize_email(payload.customer_email) if payload.customer_email else None
 
     except ValueError as e:
         logger.warning(f"Input validation failed: {e}")
@@ -167,13 +172,17 @@ async def ingest_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid input: {str(e)}"
         )
+    
+    # Log PII detection for audit purposes
+    if pii_detected:
+        logger.info(f"PII detected in message for company {company_id}: types={pii_types}")
 
     pipeline = AgentPipeline()
 
     try:
         # Convert IngestChannel to TicketChannel
-        logger.info(f"Converting channel: {request.channel} to TicketChannel")
-        ticket_channel = TicketChannel(request.channel.value)
+        logger.info(f"Converting channel: {payload.channel} to TicketChannel")
+        ticket_channel = TicketChannel(payload.channel.value)
         logger.info(f"TicketChannel: {ticket_channel}")
         
         # Find or create ticket (using sanitized values)
@@ -189,12 +198,14 @@ async def ingest_message(
         ticket_id = ticket["ticket_id"]
         was_escalated = ticket.get("status") == TicketStatus.ESCALATED
         
-        # Add customer interaction (using sanitized text)
+        # Add customer interaction (using sanitized text with PII info)
         await add_interaction(
             ticket_id=ticket_id,
             interaction_type=InteractionType.CUSTOMER_MESSAGE,
             content=text,
-            channel=request.channel.value
+            channel=payload.channel.value,
+            pii_detected=pii_detected,
+            pii_types=pii_types
         )
         
         # Update ticket interactions count
@@ -208,10 +219,12 @@ async def ingest_message(
             "operation": "INGEST_MESSAGE",
             "before": {},
             "after": {
-                "channel": request.channel.value,
+                "channel": payload.channel.value,
                 "external_user_id": external_user_id,
                 "text": text,
-                "is_new_ticket": is_new_ticket
+                "is_new_ticket": is_new_ticket,
+                "pii_detected": pii_detected,
+                "pii_types": pii_types
             },
             "timestamp": datetime.utcnow()
         })
@@ -276,7 +289,7 @@ async def ingest_message(
                 ticket_id=ticket_id,
                 interaction_type=InteractionType.AGENT_RESPONSE,
                 content=reply_text,
-                channel=request.channel.value
+                channel=payload.channel.value
             )
             
             # Update ticket interactions count again
@@ -322,5 +335,5 @@ async def ingest_message(
             "E001",
             message="Failed to process message. Please try again later.",
             internal_message=str(e),
-            context={"channel": request.channel.value if hasattr(request, 'channel') else None},
+            context={"channel": payload.channel.value if hasattr(payload, 'channel') else None},
         )

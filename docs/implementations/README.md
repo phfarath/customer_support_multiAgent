@@ -31,6 +31,10 @@ Este diretório contém documentação detalhada de features implementadas no pr
 
 - [Automated Tagging](2026-01-30_10-00_automated-tagging.md) - Tags granulares automáticas para classificação de tickets
 
+### Proteção de Dados
+
+- [PII Detection & Redaction](2026-01-31_14-30_pii-detection-redaction.md) - Detecção e redação de dados pessoais (LGPD/GDPR)
+
 ---
 
 ## 📝 Convenções de Nomenclatura
@@ -109,6 +113,7 @@ Links para documentação relacionada.
 | AI Guardrails & Prompt Security | ✅ 100% | 2026-01-29 |
 | Infrastructure Security | ✅ 100% | 2026-01-29 |
 | Automated Tagging | ✅ 100% | 2026-01-30 |
+| PII Detection & Redaction | ✅ 100% | 2026-01-31 |
 
 ---
 
@@ -132,5 +137,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-30
-**Versão do documento:** 1.4
+**Última atualização:** 2026-01-31
+**Versão do documento:** 1.5

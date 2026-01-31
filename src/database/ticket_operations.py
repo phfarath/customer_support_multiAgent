@@ -87,6 +87,8 @@ async def add_interaction(
     interaction_type: str,
     content: str,
     channel: str,
+    pii_detected: bool = False,
+    pii_types: Optional[list] = None,
     session: Optional[AsyncIOMotorClientSession] = None
 ) -> Dict[str, Any]:
     """
@@ -97,6 +99,8 @@ async def add_interaction(
         interaction_type: Type of interaction (customer_message, agent_response, system_update)
         content: Interaction content
         channel: Channel where the interaction occurred
+        pii_detected: Whether PII was detected and redacted
+        pii_types: List of PII types detected (e.g., ["cpf", "email"])
         session: Optional MongoDB session for transactions
         
     Returns:
@@ -110,6 +114,8 @@ async def add_interaction(
         "content": content,
         "channel": channel,
         "sentiment_score": 0.0,
+        "pii_detected": pii_detected,
+        "pii_types": pii_types or [],
         "created_at": datetime.utcnow()
     }
     
