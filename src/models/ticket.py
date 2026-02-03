@@ -3,8 +3,15 @@ Ticket models
 """
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
+
+
+class TicketCategory(str, Enum):
+    """Ticket category values"""
+    BILLING = "billing"
+    TECH = "tech"
+    GENERAL = "general"
 
 
 class TicketStatus(str, Enum):
@@ -52,6 +59,8 @@ class TicketBase(BaseModel):
     status: TicketStatus = TicketStatus.OPEN
     current_phase: TicketPhase = TicketPhase.TRIAGE
     interactions_count: int = 0
+    category: Optional[TicketCategory] = None
+    tags: List[str] = Field(default_factory=list)
 
 
 class TicketCreate(TicketBase):
@@ -66,6 +75,8 @@ class TicketUpdate(BaseModel):
     current_phase: Optional[TicketPhase] = None
     interactions_count: Optional[int] = None
     lock_version: Optional[int] = None
+    category: Optional[TicketCategory] = None
+    tags: Optional[List[str]] = None
 
 
 class Ticket(TicketBase):

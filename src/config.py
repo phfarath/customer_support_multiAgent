@@ -1,13 +1,18 @@
 """
 Application Configuration
 """
+import json
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from pydantic import model_validator, field_validator
+from typing import Optional, List, Any
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
-    
+
+    # Environment Configuration
+    environment: str = "development"  # development, staging, production
+
     # MongoDB Configuration
     mongodb_uri: str
     database_name: str = "customer_support"
@@ -24,6 +29,7 @@ class Settings(BaseSettings):
     # Telegram Configuration
     telegram_bot_token: Optional[str] = None
     telegram_polling_timeout: int = 30
+    telegram_webhook_secret: Optional[str] = None  # Required in production for webhook verification
 
     # JWT Configuration (for dashboard authentication)
     jwt_secret_key: str = "CHANGE_THIS_IN_PRODUCTION"  # Must be set in .env
@@ -76,7 +82,66 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
-    
+
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def parse_cors_allowed_origins(cls, v: Any) -> Any:
+        # Accept comma-separated strings or JSON arrays in env vars.
+        if v is None:
+            return v
+        if isinstance(v, str):
+            raw = v.strip()
+            if not raw:
+                return []
+            if raw.startswith("["):
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in raw.split(",") if item.strip()]
+        return v
+
+    @model_validator(mode='after')
+    def validate_production_settings(self) -> 'Settings':
+        """Validate security-critical settings in production environment"""
+        if self.environment == "production":
+            # Validate JWT secret
+            if self.jwt_secret_key == "CHANGE_THIS_IN_PRODUCTION":
+                raise ValueError(
+                    "JWT_SECRET_KEY must be changed from default value in production. "
+                    "Generate a secure random string of at least 32 characters."
+                )
+            if len(self.jwt_secret_key) < 32:
+                raise ValueError(
+                    f"JWT_SECRET_KEY must be at least 32 characters in production "
+                    f"(current: {len(self.jwt_secret_key)} chars)"
+                )
+
+            # Validate Telegram webhook secret
+            if not self.telegram_webhook_secret:
+                raise ValueError(
+                    "TELEGRAM_WEBHOOK_SECRET is required in production for webhook security. "
+                    "Set this when configuring the Telegram webhook."
+                )
+
+            # Validate CORS origins (no localhost in production)
+            localhost_origins = [
+                o for o in self.cors_allowed_origins
+                if "localhost" in o or "127.0.0.1" in o
+            ]
+            if localhost_origins:
+                raise ValueError(
+                    f"CORS_ALLOWED_ORIGINS contains localhost origins in production: {localhost_origins}. "
+                    "Remove localhost origins and use production domain names."
+                )
+            if not self.cors_allowed_origins:
+                raise ValueError(
+                    "CORS_ALLOWED_ORIGINS cannot be empty in production. "
+                    "Add your production domain(s)."
+                )
+
+        return self
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

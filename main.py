@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from src.config import settings
@@ -15,15 +14,21 @@ from src.api import router, ingest_router, telegram_router, company_router, huma
 from src.api.api_key_routes import router as api_key_router
 from src.api.health_routes import router as health_router
 from src.utils.monitoring import init_sentry, flush_events
+from src.utils.secure_logging import configure_secure_logging
+from src.middleware.rate_limiter import get_rate_limit_key
+from src.middleware.cors import get_cors_origins
+from src.middleware.security_headers import SecurityHeadersMiddleware
+from src.security.error_handler import secure_exception_handler
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# Configure secure logging (masks sensitive data automatically)
+configure_secure_logging(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format_type='text',  # Use 'json' in production for log aggregation
+    include_trace_id=True,
 )
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+# Initialize rate limiter with fingerprint-based key (IP + User-Agent + API Key)
+limiter = Limiter(key_func=get_rate_limit_key, default_limits=["100/minute"])
 
 
 @asynccontextmanager
@@ -74,10 +79,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Add SlowAPI middleware
 app.add_middleware(SlowAPIMiddleware)
 
-# Add CORS middleware (HARDENED - specific origins only)
+# Add CORS middleware (HARDENED - specific origins only, localhost filtered in production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_allowed_origins,  # Whitelist specific origins
+    allow_origins=get_cors_origins(),              # Whitelist specific origins (localhost filtered in production)
     allow_credentials=True,                        # Allow credentials (cookies, authorization headers)
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specific methods only
     allow_headers=[                                # Specific headers only
@@ -90,6 +95,16 @@ app.add_middleware(
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining"],  # Expose rate limit info
     max_age=600,  # Cache preflight requests for 10 minutes
 )
+
+# Add Security Headers middleware (CSP, X-Frame-Options, HSTS, etc.)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    environment=settings.environment,
+    excluded_paths=["/health", "/api/health", "/metrics"],
+)
+
+# Add global exception handler (never exposes internal details)
+app.add_exception_handler(Exception, secure_exception_handler)
 
 # Include routes
 app.include_router(health_router)  # Health checks (no auth required)

@@ -13,6 +13,7 @@ class FakeCollection:
         self.find_one_result = None
         self.find_one_results = []
         self.find_results = []
+        self.last_update_data = None  # Store last update data for assertions
 
     async def insert_one(self, document: Dict[str, Any], *args, **kwargs):
         class _InsertResult:
@@ -23,8 +24,9 @@ class FakeCollection:
         inserted_id = document.get("_id", "fake_id")
         return _InsertResult(inserted_id)
 
-    async def update_one(self, *args, **kwargs):
-        self.updated.append({"args": args, "kwargs": kwargs})
+    async def update_one(self, filter_dict, update_dict, *args, **kwargs):
+        self.updated.append({"filter": filter_dict, "update": update_dict, "args": args, "kwargs": kwargs})
+        self.last_update_data = update_dict  # Store for test assertions
         return {"matched_count": 1, "modified_count": 1}
 
     async def find_one(self, *args, **kwargs):
@@ -83,6 +85,7 @@ from src.database import (
     COLLECTION_ROUTING_DECISIONS,
     COLLECTION_AUDIT_LOGS,
     COLLECTION_COMPANY_CONFIGS,
+    COLLECTION_API_KEYS,
 )
 
 
@@ -95,6 +98,7 @@ def fake_db(monkeypatch):
         COLLECTION_ROUTING_DECISIONS: FakeCollection(),
         COLLECTION_AUDIT_LOGS: FakeCollection(),
         COLLECTION_COMPANY_CONFIGS: FakeCollection(),
+        COLLECTION_API_KEYS: FakeCollection(),
     }
 
     def _get_collection(name: str) -> FakeCollection:

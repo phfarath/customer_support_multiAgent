@@ -1,0 +1,179 @@
+version: '3.8'
+
+# ============================================================
+# Docker Compose for Development Environment
+# ============================================================
+# Services:
+#   - api: FastAPI application with hot-reload
+#   - telegram-bot: Telegram bot (polling mode)
+#   - dashboard: Streamlit dashboard
+#
+# MongoDB: Uses MongoDB Atlas (cloud) - no local MongoDB service
+# ============================================================
+
+services:
+  # -------------------- FastAPI Application --------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: customer-support-api-dev
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      # MongoDB (Atlas connection)
+      MONGODB_URI: ${MONGODB_URI}
+      DATABASE_NAME: ${DATABASE_NAME:-customer_support_esc}
+
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-3.5-turbo}
+
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-True}
+      ESCALATION_DEFAULT_EMAIL: ${ESCALATION_DEFAULT_EMAIL}
+      ESCALATION_HANDOFF_MESSAGE: ${ESCALATION_HANDOFF_MESSAGE}
+
+      # API
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_RELOAD: ${API_RELOAD:-True}
+
+      # JWT
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+      # CORS
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8501,http://localhost:3000}
+
+      # Escalation
+      ESCALATION_MAX_INTERACTIONS: ${ESCALATION_MAX_INTERACTIONS:-2}
+      ESCALATION_MIN_CONFIDENCE: ${ESCALATION_MIN_CONFIDENCE:-0.6}
+      ESCALATION_MIN_SENTIMENT: ${ESCALATION_MIN_SENTIMENT:--0.7}
+      ESCALATION_SLA_HOURS: ${ESCALATION_SLA_HOURS:-4}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Sentry (if enabled)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-development}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-1.0}
+
+    volumes:
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+      - ./chroma_db:/app/chroma_db
+      - ./logs:/app/logs
+      - ./scripts:/app/scripts
+
+    networks:
+      - customer-support-dev-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # -------------------- Telegram Bot (Polling - Dev Only) --------------------
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: customer-support-telegram-bot-dev
+    restart: unless-stopped
+    command: ["python", "run_telegram_bot.py"]
+    environment:
+      # MongoDB (Atlas connection)
+      MONGODB_URI: ${MONGODB_URI}
+      DATABASE_NAME: ${DATABASE_NAME:-customer_support_esc}
+
+      # OpenAI
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-3.5-turbo}
+
+      # Telegram
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+
+      # SMTP
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-True}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+    volumes:
+      - ./src:/app/src
+      - ./run_telegram_bot.py:/app/run_telegram_bot.py
+      - ./chroma_db:/app/chroma_db
+      - ./logs:/app/logs
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    networks:
+      - customer-support-dev-network
+
+    profiles:
+      - full
+
+  # -------------------- Streamlit Dashboard --------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: customer-support-dashboard-dev
+    restart: unless-stopped
+    command: ["streamlit", "run", "src/dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.runOnSave=true"]
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    environment:
+      # MongoDB (Atlas connection)
+      MONGODB_URI: ${MONGODB_URI}
+      DATABASE_NAME: ${DATABASE_NAME:-customer_support_esc}
+
+      # JWT
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+    volumes:
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+      - ./logs:/app/logs
+
+    depends_on:
+      api:
+        condition: service_healthy
+
+    networks:
+      - customer-support-dev-network
+
+    profiles:
+      - full
+
+# -------------------- Networks --------------------
+networks:
+  customer-support-dev-network:
+    driver: bridge
+    name: customer-support-dev-network

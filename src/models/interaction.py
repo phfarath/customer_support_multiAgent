@@ -3,7 +3,7 @@ Interaction models
 """
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
 
 
@@ -14,6 +14,14 @@ class InteractionType(str, Enum):
     SYSTEM_UPDATE = "system_update"
 
 
+class AIDecisionMetadata(BaseModel):
+    """Metadata about AI decision for transparency and auditability"""
+    confidence_score: float = 0.0  # 0.0 to 1.0
+    reasoning: Optional[str] = None  # Textual explanation of the decision
+    decision_type: Optional[str] = None  # "triage", "routing", "resolution", "escalation"
+    factors: List[str] = []  # List of factors considered in the decision
+
+
 class InteractionBase(BaseModel):
     """Base interaction model"""
     ticket_id: str
@@ -21,6 +29,9 @@ class InteractionBase(BaseModel):
     content: str
     channel: Optional[str] = None
     sentiment_score: float = 0.0
+    ai_metadata: Optional[AIDecisionMetadata] = None  # AI decision transparency
+    pii_detected: bool = False  # Whether PII was detected and redacted (LGPD/GDPR)
+    pii_types: List[str] = []  # Types of PII detected (e.g., ["cpf", "email"])
 
 
 class InteractionCreate(InteractionBase):
@@ -36,3 +47,4 @@ class Interaction(InteractionBase):
     class Config:
         populate_by_name = True
         json_encoders = {datetime: lambda v: v.isoformat()}
+

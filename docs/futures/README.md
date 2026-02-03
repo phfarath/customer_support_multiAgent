@@ -1,7 +1,7 @@
 # Implementações Futuras
 
 > **Backlog de features organizadas por versão com tracking detalhado**
-> Última atualização: 2026-01-24
+> Última atualização: 2026-01-28
 
 ---
 
@@ -15,6 +15,9 @@
 | 009 | [Context Persistence](009_v1.0_context_persistence.md) | ⏳ Pendente | — | 20h |
 | 010 | [Handoff Warnings](010_v1.0_handoff_warnings.md) | ⏳ Pendente | — | 4h |
 | 011 | [Confidence Transparency](011_v1.0_confidence_transparency.md) | ⏳ Pendente | — | 8h |
+| 036 | [API Security Hardening](036_v1.0_api_security_hardening.md) | ⏳ Pendente | — | 20h |
+| 037 | [AI Guardrails & Prompt Security](037_v1.0_ai_guardrails_prompt_security.md) | ⏳ Pendente | — | 25h |
+| 038 | [Infrastructure Security](038_v1.0_infrastructure_security.md) | ⏳ Pendente | — | 15h |
 
 ### V1.1 - Channels & Compliance
 
@@ -78,14 +81,14 @@
 
 | Versão | Prazo | Prioridade | Total Estimado | Features |
 |--------|-------|------------|----------------|----------|
-| V1.0 | Semana 3 | 🔴 Crítica | ~47h | Testing, Context, Handoff, Confidence |
+| V1.0 | Semana 3 | 🔴 Crítica | ~107h | Testing, Context, Handoff, Confidence, **Security (3)** |
 | V1.1 | Mês 2 | 🟠 Alta | ~86h | WhatsApp, Email, KB UI, Tagging, PII |
 | V1.2 | Mês 2-3 | 🟡 Média | ~150h | Dashboard, RBAC, Bulk, Sentiment, CSAT |
 | V1.3 | Mês 3 | 🟡 Média | ~162h | RAG, Self-Service, Custom Agents, Analytics |
 | V1.4 | Mês 4 | 🟢 Baixa | ~140h | Predictive, Caching, Fallback, Anomaly |
 | V2.0+ | Mês 6+ | ⚪ Future | ~440h | Scaling, Encryption, Events, Plugins |
 
-**Total Backlog:** ~1,025 horas estimadas
+**Total Backlog:** ~1,085 horas estimadas
 
 ---
 
@@ -144,5 +147,5 @@ Breve descrição da feature.
 
 ---
 
-**Versão do documento:** 2.0
-**Total de features:** 35
+**Versão do documento:** 2.1
+**Total de features:** 38

@@ -172,7 +172,8 @@ Consider:
 Return your response as a JSON object with these fields:
 - target_team: Must be one of {valid_teams}
 - confidence: A number between 0.0 and 1.0
-- reasons: An array of strings explaining your decision"""
+- reasons: An array of strings explaining your decision
+- reasoning: A brief explanation (1-2 sentences) of WHY this team is the best fit for this ticket"""
 
         user_message = f"""Ticket Information:
 Subject: {subject}
@@ -198,10 +199,14 @@ Which team should handle this ticket?"""
             confidence = self._validate_confidence(result.get("confidence", 0.8))
             reasons = self._validate_reasons(result.get("reasons", []))
             
+            # Build reasoning
+            reasoning = result.get("reasoning", f"Routed to {target_team} based on category analysis.")
+            
             return {
                 "target_team": target_team,
                 "confidence": confidence,
                 "reasons": reasons,
+                "reasoning": reasoning,
                 "decisions": reasons
             }
         except Exception as e:
@@ -263,12 +268,14 @@ Which team should handle this ticket?"""
             target_team = "sales"
 
         reasons = [f"Fallback routing based on category: {category} -> {target_team}"]
+        reasoning = f"Routed to {target_team} using rule-based analysis (AI unavailable). Category matched team assignment."
         confidence = 0.7
         
         return {
             "target_team": target_team,
             "confidence": confidence,
             "reasons": reasons,
+            "reasoning": reasoning,
             "decisions": reasons
         }
     
@@ -297,6 +304,7 @@ Which team should handle this ticket?"""
         
         routing_data = routing_decision.model_dump()
         routing_data["created_at"] = datetime.utcnow()
+        routing_data["reasoning"] = routing.get("reasoning")  # Add reasoning for transparency
         
         if session:
             await routing_collection.insert_one(routing_data, session=session)

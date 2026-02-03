@@ -17,6 +17,16 @@ class Customer(BaseModel):
     email: Optional[str] = Field(None, description="Email do cliente")
     telegram_chat_id: Optional[int] = Field(None, description="Chat ID do Telegram")
     
+    # Context Persistence Fields
+    preferences: Dict[str, Any] = Field(
+        default_factory=dict, 
+        description="Customer preferences (language, communication_style, etc.)"
+    )
+    history_summary: Optional[str] = Field(
+        None, 
+        description="AI-generated summary of customer's interaction history"
+    )
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)

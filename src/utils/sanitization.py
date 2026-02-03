@@ -3,8 +3,10 @@ Input sanitization utilities
 """
 import re
 import html
-from typing import Optional
+from typing import Optional, Tuple, List
 import logging
+
+from src.utils.pii_detector import redact_pii, has_pii
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,11 @@ MAX_PHONE_LENGTH = 20           # Phone numbers
 MAX_ID_LENGTH = 100             # IDs (ticket_id, customer_id, etc)
 
 
-def sanitize_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
+def sanitize_text(
+    text: str, 
+    max_length: int = MAX_TEXT_LENGTH,
+    redact_pii_data: bool = False
+) -> str:
     """
     Sanitize user text input (messages, descriptions, etc)
 
@@ -27,10 +33,12 @@ def sanitize_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     - Escape HTML entities (prevent XSS)
     - Normalize excessive whitespace
     - Strip leading/trailing whitespace
+    - Optionally redact PII (LGPD/GDPR compliance)
 
     Args:
         text: Raw input text
         max_length: Maximum allowed length
+        redact_pii_data: If True, redact detected PII
 
     Returns:
         Sanitized text safe for storage and display
@@ -56,7 +64,48 @@ def sanitize_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     text = re.sub(r'\n{3,}', '\n\n', text)  # More than 2 newlines → 2 newlines
 
     # Strip leading/trailing whitespace
-    return text.strip()
+    text = text.strip()
+
+    # Optionally redact PII
+    if redact_pii_data:
+        text, _, _ = redact_pii(text)
+
+    return text
+
+
+def sanitize_text_with_pii_detection(
+    text: str, 
+    max_length: int = MAX_TEXT_LENGTH
+) -> Tuple[str, bool, List[str]]:
+    """
+    Sanitize user text and detect/redact PII.
+    
+    Combines standard sanitization with PII detection for LGPD/GDPR compliance.
+    
+    Args:
+        text: Raw input text
+        max_length: Maximum allowed length
+        
+    Returns:
+        Tuple of (sanitized_text, pii_detected, pii_types)
+        - sanitized_text: Sanitized and PII-redacted text
+        - pii_detected: True if any PII was found
+        - pii_types: List of PII types that were detected
+        
+    Example:
+        >>> sanitize_text_with_pii_detection("Meu CPF é 123.456.789-09")
+        ('[CPF REDACTED]', True, ['cpf'])
+    """
+    if not text:
+        return "", False, []
+    
+    # First apply standard sanitization (without PII redaction)
+    sanitized = sanitize_text(text, max_length=max_length, redact_pii_data=False)
+    
+    # Then detect and redact PII
+    redacted_text, pii_detected, pii_types = redact_pii(sanitized)
+    
+    return redacted_text, pii_detected, pii_types
 
 
 def sanitize_identifier(identifier: str, max_length: int = MAX_ID_LENGTH) -> str:
@@ -225,6 +274,7 @@ def sanitize_dict_keys(data: dict, allowed_keys: set) -> dict:
 # Export all functions
 __all__ = [
     "sanitize_text",
+    "sanitize_text_with_pii_detection",
     "sanitize_identifier",
     "sanitize_email",
     "sanitize_phone",

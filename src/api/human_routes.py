@@ -42,8 +42,8 @@ class HumanReplyResponse(BaseModel):
 @router.post("/reply", response_model=HumanReplyResponse)
 @limiter.limit("30/minute")  # Human replies (write operation)
 async def human_reply(
-    http_request: Request,  # Required by slowapi
-    request: HumanReplyRequest,
+    request: Request,  # Required by slowapi
+    payload: HumanReplyRequest,
     api_key: dict = Depends(verify_api_key)
 ) -> HumanReplyResponse:
     """
@@ -155,7 +155,7 @@ async def human_reply(
 @router.get("/escalated")
 @limiter.limit("200/minute")  # Read operation
 async def list_escalated_tickets(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ):
     """

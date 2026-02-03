@@ -1,6 +1,7 @@
 """
 FastAPI routes for the customer support system
 """
+import logging
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from typing import Dict, Any
 from datetime import datetime
@@ -13,6 +14,7 @@ from src.models import (
     TicketStatus,
     TicketPriority,
     TicketChannel,
+    TicketCategory,
 )
 from src.database import (
     get_collection,
@@ -29,6 +31,14 @@ from src.utils.sanitization import (
     sanitize_text,
     sanitize_identifier,
 )
+from src.security.error_handler import (
+    SecureError,
+    raise_not_found,
+    raise_validation_error,
+    raise_internal_error,
+)
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api", tags=["tickets"])
@@ -40,7 +50,7 @@ limiter = Limiter(key_func=get_remote_address)
 @router.post("/tickets", response_model=Dict[str, Any], status_code=status.HTTP_201_CREATED)
 @limiter.limit("30/minute")  # Write operation
 async def create_ticket(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_data: TicketCreate,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -128,7 +138,7 @@ async def create_ticket(
 @router.post("/run_pipeline/{ticket_id}", response_model=Dict[str, Any])
 @limiter.limit("10/minute")  # Heavy operation (expensive)
 async def run_pipeline(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -169,21 +179,28 @@ async def run_pipeline(
             "results": results
         }
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
+        # Log the actual error internally, return safe message
+        logger.warning(f"Pipeline validation error for ticket {ticket_id}: {e}")
+        raise SecureError(
+            "E007",
+            message=f"Ticket {ticket_id} not found or invalid.",
+            internal_message=str(e),
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution failed: {str(e)}"
+        # Log full error details internally, return generic message
+        logger.error(f"Pipeline execution failed for ticket {ticket_id}", exc_info=True)
+        raise SecureError(
+            "E001",
+            message="Pipeline execution failed. Please try again later.",
+            internal_message=str(e),
+            context={"ticket_id": ticket_id},
         )
 
 
 @router.get("/tickets/{ticket_id}", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -226,7 +243,7 @@ async def get_ticket(
 @router.get("/tickets/{ticket_id}/audit", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_audit(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -271,7 +288,7 @@ async def get_ticket_audit(
 @router.get("/tickets/{ticket_id}/interactions", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_interactions(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -316,7 +333,7 @@ async def get_ticket_interactions(
 @router.get("/tickets/{ticket_id}/agent_states", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def get_ticket_agent_states(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     ticket_id: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -361,9 +378,11 @@ async def get_ticket_agent_states(
 @router.get("/tickets", response_model=Dict[str, Any])
 @limiter.limit("200/minute")  # Read operation
 async def list_tickets(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     status: TicketStatus = None,
     priority: TicketPriority = None,
+    category: TicketCategory = None,
+    tags: str = None,
     limit: int = 50,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -375,6 +394,8 @@ async def list_tickets(
     Args:
         status: Filter by status
         priority: Filter by priority
+        category: Filter by category (billing, tech, general)
+        tags: Filter by tags (comma-separated, e.g. "refund,payment_issue")
         limit: Maximum number of tickets to return
         api_key: Authenticated API key (auto-injected)
 
@@ -389,14 +410,21 @@ async def list_tickets(
         filter_dict["status"] = status
     if priority:
         filter_dict["priority"] = priority
-    
+    if category:
+        filter_dict["category"] = category
+    if tags:
+        # Parse comma-separated tags and filter tickets containing ANY of them
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        if tag_list:
+            filter_dict["tags"] = {"$in": tag_list}
+
     cursor = collection.find(filter_dict).sort("created_at", -1).limit(limit)
-    
+
     tickets = []
     async for ticket in cursor:
         ticket["_id"] = str(ticket["_id"])
         tickets.append(ticket)
-    
+
     return {
         "success": True,
         "tickets": tickets,

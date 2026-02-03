@@ -3,6 +3,7 @@ FastAPI routes for Telegram webhook integration
 """
 from fastapi import APIRouter, HTTPException, status, Request, Depends
 from typing import Dict, Any
+import hmac
 import json
 import logging
 from pathlib import Path
@@ -11,9 +12,10 @@ from src.adapters.telegram_adapter import TelegramAdapter
 from src.models import IngestMessageRequest, IngestChannel
 from src.api.ingest_routes import ingest_message
 from src.middleware.auth import verify_api_key
+from src.middleware.rate_limiter import get_rate_limit_key_ip_only
 from src.utils.sanitization import sanitize_text, sanitize_identifier, sanitize_company_id
+from src.config import settings
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 
 # Configure logging
@@ -21,9 +23,49 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Initialize rate limiter with IP-only key for public endpoints
+limiter = Limiter(key_func=get_rate_limit_key_ip_only)
 _WEBHOOK_DUMP_PATH = Path("logs/telegram_webhook.jsonl")
+
+
+async def verify_telegram_signature(request: Request) -> bool:
+    """
+    Verify Telegram webhook using secret token header.
+
+    Telegram sends the secret token in the 'X-Telegram-Bot-Api-Secret-Token' header
+    when the webhook is configured with a secret_token parameter.
+
+    In development: Skip verification if secret not configured
+    In production: Always require valid signature
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        True if signature is valid or verification is skipped
+    """
+    # In development, skip verification if secret not configured
+    if settings.environment != "production" and not settings.telegram_webhook_secret:
+        logger.debug("Telegram webhook signature verification skipped (not configured in dev)")
+        return True
+
+    # Get the secret token from header
+    secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+
+    if not secret_token:
+        logger.warning(
+            f"Telegram webhook request without signature from {request.client.host if request.client else 'unknown'}"
+        )
+        return False
+
+    # Compare using constant-time comparison to prevent timing attacks
+    if not hmac.compare_digest(secret_token, settings.telegram_webhook_secret or ""):
+        logger.warning(
+            f"Invalid Telegram webhook signature from {request.client.host if request.client else 'unknown'}"
+        )
+        return False
+
+    return True
 
 
 @router.post("/webhook")
@@ -32,21 +74,33 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
     """
     Telegram webhook endpoint
 
-    NOTE: This endpoint is PUBLIC (no API key required) as it's called by Telegram servers.
-    TODO: Add Telegram webhook signature verification for security.
+    This endpoint is PUBLIC (no API key required) as it's called by Telegram servers.
+    Security is provided by webhook signature verification using the secret token
+    configured when setting up the webhook with Telegram.
 
     This endpoint receives updates from Telegram Bot API:
-    1. Parses the Telegram update payload
-    2. Converts it to the standard ingest format
-    3. Calls the /ingest-message endpoint
-    4. Sends the response back to the user via Telegram
+    1. Verifies the webhook signature (in production)
+    2. Parses the Telegram update payload
+    3. Converts it to the standard ingest format
+    4. Calls the /ingest-message endpoint
+    5. Sends the response back to the user via Telegram
 
     Args:
         request: FastAPI request with Telegram webhook payload
 
     Returns:
         Success response
+
+    Raises:
+        HTTPException 403: If webhook signature verification fails
     """
+    # Verify Telegram webhook signature
+    if not await verify_telegram_signature(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook signature"
+        )
+
     try:
         # Get Telegram update from request body
         update = await request.json()
@@ -141,7 +195,7 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
 @router.get("/webhook/info")
 @limiter.limit("30/minute")  # Admin endpoint
 async def get_webhook_info(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """
@@ -169,7 +223,7 @@ async def get_webhook_info(
 @router.post("/webhook/set")
 @limiter.limit("5/minute")  # Critical admin operation
 async def set_webhook(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     webhook_url: str,
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
@@ -199,7 +253,7 @@ async def set_webhook(
 @router.post("/webhook/delete")
 @limiter.limit("5/minute")  # Critical admin operation
 async def delete_webhook(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """
@@ -227,7 +281,7 @@ async def delete_webhook(
 @router.get("/bot/info")
 @limiter.limit("30/minute")  # Admin endpoint
 async def get_bot_info(
-    http_request: Request,  # Required by slowapi
+    request: Request,  # Required by slowapi
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """

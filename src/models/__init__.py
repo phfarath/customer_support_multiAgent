@@ -9,9 +9,10 @@ from .ticket import (
     TicketPriority,
     TicketPhase,
     TicketChannel,
+    TicketCategory,
 )
 from .agent_state import AgentState, AgentStateCreate
-from .interaction import Interaction, InteractionCreate, InteractionType
+from .interaction import Interaction, InteractionCreate, InteractionType, AIDecisionMetadata
 from .routing_decision import RoutingDecision, RoutingDecisionCreate
 from .audit_log import AuditLog, AuditLogCreate, AuditOperation
 from .ingest import IngestMessageRequest, IngestMessageResponse, IngestChannel
@@ -26,6 +27,7 @@ __all__ = [
     "TicketPriority",
     "TicketPhase",
     "TicketChannel",
+    "TicketCategory",
     "AgentState",
     "AgentStateCreate",
     "Interaction",
