@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     telegram_polling_timeout: int = 30
     telegram_webhook_secret: Optional[str] = None  # Required in production for webhook verification
 
+    # WhatsApp Business API Configuration
+    whatsapp_access_token: Optional[str] = None  # Permanent access token from Meta
+    whatsapp_phone_number_id: Optional[str] = None  # Phone number ID from Meta Business
+    whatsapp_verify_token: Optional[str] = None  # Custom token for webhook verification
+    whatsapp_app_secret: Optional[str] = None  # App secret for signature verification (required in production)
+
     # JWT Configuration (for dashboard authentication)
     jwt_secret_key: str = "CHANGE_THIS_IN_PRODUCTION"  # Must be set in .env
     jwt_algorithm: str = "HS256"
@@ -122,6 +128,13 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "TELEGRAM_WEBHOOK_SECRET is required in production for webhook security. "
                     "Set this when configuring the Telegram webhook."
+                )
+
+            # Validate WhatsApp app secret (if WhatsApp is configured)
+            if self.whatsapp_access_token and not self.whatsapp_app_secret:
+                raise ValueError(
+                    "WHATSAPP_APP_SECRET is required in production for webhook security. "
+                    "Get this from your Meta App settings."
                 )
 
             # Validate CORS origins (no localhost in production)
