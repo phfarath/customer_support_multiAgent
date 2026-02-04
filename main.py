@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from src.config import settings
 from src.database import ensure_indexes, close_connection
-from src.api import router, ingest_router, telegram_router, company_router, human_router
+from src.api import router, ingest_router, telegram_router, whatsapp_router, company_router, human_router
 from src.api.api_key_routes import router as api_key_router
 from src.api.health_routes import router as health_router
 from src.utils.monitoring import init_sentry, flush_events
@@ -111,6 +111,7 @@ app.include_router(health_router)  # Health checks (no auth required)
 app.include_router(router)
 app.include_router(ingest_router)
 app.include_router(telegram_router)
+app.include_router(whatsapp_router)
 app.include_router(company_router)
 app.include_router(human_router)
 app.include_router(api_key_router)
@@ -131,7 +132,8 @@ async def root():
             "get_audit": "GET /api/tickets/{ticket_id}/audit",
             "list_tickets": "GET /api/tickets",
             "ingest_message": "POST /api/ingest-message",
-            "telegram_webhook": "POST /telegram/webhook"
+            "telegram_webhook": "POST /telegram/webhook",
+            "whatsapp_webhook": "POST /whatsapp/webhook"
         }
     }
 

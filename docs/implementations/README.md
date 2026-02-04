@@ -35,6 +35,10 @@ Este diretório contém documentação detalhada de features implementadas no pr
 
 - [PII Detection & Redaction](2026-01-31_14-30_pii-detection-redaction.md) - Detecção e redação de dados pessoais (LGPD/GDPR)
 
+### Integrações de Canal
+
+- [WhatsApp Business API Integration](2026-02-04_14-50_whatsapp-integration.md) - Integração com WhatsApp Business Cloud API
+
 ---
 
 ## 📝 Convenções de Nomenclatura
@@ -114,6 +118,7 @@ Links para documentação relacionada.
 | Infrastructure Security | ✅ 100% | 2026-01-29 |
 | Automated Tagging | ✅ 100% | 2026-01-30 |
 | PII Detection & Redaction | ✅ 100% | 2026-01-31 |
+| WhatsApp Business API Integration | ✅ 100% | 2026-02-04 |
 
 ---
 
@@ -122,6 +127,7 @@ Links para documentação relacionada.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) - Visão geral do projeto
 - [AI_INSTRUCTIONS.md](../AI_INSTRUCTIONS.md) - Guia para agentes de IA
 - [TELEGRAM_SETUP.md](../TELEGRAM_SETUP.md) - Setup do Telegram bot
+- [WHATSAPP_SETUP.md](../WHATSAPP_SETUP.md) - Setup do WhatsApp Business API
 - [MULTI_TENANCY.md](../MULTI_TENANCY.md) - Explicação de multi-tenancy
 - [mongodb_collections.md](../mongodb_collections.md) - Schema detalhado das collections
 
@@ -129,7 +135,6 @@ Links para documentação relacionada.
 
 ## 🚀 Próximas Implementações Planejadas
 
-- WhatsApp Business API Integration
 - Email Inbound (IMAP/webhook)
 - Advanced RAG (re-ranking, metadata filtering)
 - Customer Feedback System
@@ -137,5 +142,5 @@ Links para documentação relacionada.
 
 ---
 
-**Última atualização:** 2026-01-31
-**Versão do documento:** 1.5
+**Última atualização:** 2026-02-04
+**Versão do documento:** 1.6
