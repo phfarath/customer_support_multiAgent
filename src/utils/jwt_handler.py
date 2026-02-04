@@ -2,6 +2,7 @@
 JWT token handler for dashboard authentication
 """
 import jwt
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 from src.config import settings
@@ -30,14 +31,17 @@ def create_jwt_token(
     Returns:
         JWT token string
     """
+    now = datetime.utcnow()
     payload = {
         "user_id": user_id,
         "company_id": company_id,
         "email": email,
         "full_name": full_name or email,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=settings.jwt_expiration_hours),
-        "iat": datetime.utcnow()
+        "exp": now + timedelta(hours=settings.jwt_expiration_hours),
+        "iat": now,
+        "nbf": now,  # Not valid before (prevents future-dated tokens)
+        "jti": secrets.token_urlsafe(16),  # Unique token ID for revocation tracking
     }
 
     token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
