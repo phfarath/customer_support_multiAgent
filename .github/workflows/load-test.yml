@@ -1,0 +1,174 @@
+name: Load Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: 'Number of concurrent users'
+        required: true
+        default: '50'
+        type: string
+      spawn_rate:
+        description: 'Users to spawn per second'
+        required: true
+        default: '5'
+        type: string
+      duration:
+        description: 'Test duration (e.g., 60s, 5m)'
+        required: true
+        default: '60s'
+        type: string
+      test_type:
+        description: 'Test type'
+        required: true
+        default: 'normal'
+        type: choice
+        options:
+          - normal
+          - stress
+          - readonly
+
+  schedule:
+    # Run weekly on Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+env:
+  PYTHON_VERSION: "3.10"
+
+jobs:
+  load-test:
+    name: Load Testing
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Start application
+        env:
+          MONGODB_URI: mongodb://localhost:27017/load_test_db
+          ENVIRONMENT: test
+          JWT_SECRET_KEY: test_secret_key_for_load_testing_min_32_chars
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          # Start the application in background
+          uvicorn main:app --host 0.0.0.0 --port 8000 &
+
+          # Wait for application to start
+          echo "Waiting for application to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+              echo "Application is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+          # Final check
+          curl -f http://localhost:8000/api/health || exit 1
+
+      - name: Determine test parameters
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "users=50" >> $GITHUB_OUTPUT
+            echo "spawn_rate=5" >> $GITHUB_OUTPUT
+            echo "duration=60s" >> $GITHUB_OUTPUT
+            echo "test_type=normal" >> $GITHUB_OUTPUT
+          else
+            echo "users=${{ github.event.inputs.users }}" >> $GITHUB_OUTPUT
+            echo "spawn_rate=${{ github.event.inputs.spawn_rate }}" >> $GITHUB_OUTPUT
+            echo "duration=${{ github.event.inputs.duration }}" >> $GITHUB_OUTPUT
+            echo "test_type=${{ github.event.inputs.test_type }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run load tests
+        run: |
+          mkdir -p reports
+
+          # Select user class based on test type
+          USER_CLASS=""
+          case "${{ steps.params.outputs.test_type }}" in
+            stress)
+              USER_CLASS="StressTestUser"
+              ;;
+            readonly)
+              USER_CLASS="ReadOnlyUser"
+              ;;
+            *)
+              USER_CLASS="CustomerSupportUser"
+              ;;
+          esac
+
+          echo "Running load test with:"
+          echo "  Users: ${{ steps.params.outputs.users }}"
+          echo "  Spawn Rate: ${{ steps.params.outputs.spawn_rate }}/s"
+          echo "  Duration: ${{ steps.params.outputs.duration }}"
+          echo "  User Class: $USER_CLASS"
+
+          locust \
+            -f tests/load/locustfile.py \
+            --headless \
+            -u ${{ steps.params.outputs.users }} \
+            -r ${{ steps.params.outputs.spawn_rate }} \
+            -t ${{ steps.params.outputs.duration }} \
+            --host http://localhost:8000 \
+            --html reports/load_test_report.html \
+            --csv reports/load_test \
+            --only-summary
+
+      - name: Upload load test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report-${{ github.run_number }}
+          path: reports/
+          retention-days: 30
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Users | ${{ steps.params.outputs.users }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Spawn Rate | ${{ steps.params.outputs.spawn_rate }}/s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${{ steps.params.outputs.duration }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | ${{ steps.params.outputs.test_type }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f reports/load_test_stats.csv ]; then
+            echo "### Results Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat reports/load_test_stats.csv | head -20 >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 Download the HTML report from artifacts for detailed analysis." >> $GITHUB_STEP_SUMMARY

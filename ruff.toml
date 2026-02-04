@@ -1,0 +1,49 @@
+# Ruff Configuration
+# https://docs.astral.sh/ruff/configuration/
+
+line-length = 120
+target-version = "py310"
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "S",      # flake8-bandit (security)
+    "UP",     # pyupgrade
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "PL",     # pylint
+    "RUF",    # Ruff-specific rules
+]
+
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "S101",   # assert used (ok in tests)
+    "S104",   # binding to all interfaces (intentional for Docker)
+    "S105",   # hardcoded password (false positives on placeholders)
+    "S106",   # hardcoded password (false positives on placeholders)
+    "S311",   # pseudo-random generators (ok for non-crypto use)
+    "PLR0913", # too many arguments (some functions need them)
+    "PLR2004", # magic values (acceptable in some contexts)
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004"]
+"scripts/**/*.py" = ["S", "PLR"]
+"src/dashboard/**/*.py" = ["PLR0915"]  # Streamlit has long functions
+
+[lint.isort]
+known-first-party = ["src"]
+force-single-line = false
+lines-after-imports = 2
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

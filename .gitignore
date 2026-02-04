@@ -45,6 +45,15 @@ logs/
 .coverage
 htmlcov/
 .tox/
+coverage_html/
+coverage.xml
+.coverage.*
+
+# Load Testing Reports
+reports/
+
+# Security
+bandit-report.json
 
 # OS
 .DS_Store
@@ -53,3 +62,19 @@ Thumbs.db
 # Database
 *.db
 *.sqlite
+
+# ChromaDB
+chroma_db/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Secrets (never commit)
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account.json

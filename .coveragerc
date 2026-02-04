@@ -1,0 +1,30 @@
+[run]
+source = src
+branch = True
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    src/dashboard/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    @abc.abstractmethod
+
+fail_under = 70
+show_missing = True
+precision = 2
+
+[html]
+directory = coverage_html
+title = Customer Support MultiAgent - Coverage Report
+
+[xml]
+output = coverage.xml
