@@ -1,6 +1,38 @@
 # MultiAgent Customer Support System
 
+[![CI/CD Pipeline](https://github.com/phfarath/customer_support_multiAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/phfarath/customer_support_multiAgent/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/phfarath/customer_support_multiAgent/branch/main/graph/badge.svg)](https://codecov.io/gh/phfarath/customer_support_multiAgent)
+[![Security](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
 AI-powered customer support system using MongoDB + Python with FastAPI.
+
+> **🚀 Primeira vez aqui?** Siga o [Guia de Configuração](GETTING_STARTED.md) para ter o bot funcionando em 15 minutos!
+
+## Quick Start
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/phfarath/customer_support_multiAgent.git
+cd customer_support_multiAgent
+
+# 2. Configure as variáveis de ambiente
+cp .env.example .env
+# Edite .env com suas credenciais (OpenAI, Telegram, etc.)
+
+# 3. Inicie com Docker
+docker compose up -d
+
+# 4. Verifique se está funcionando
+curl http://localhost:8000/api/health
+
+# 5. Crie suas credenciais
+docker compose exec api python scripts/create_initial_api_key.py --company-id minha_empresa --name "Dev Key"
+```
+
+📖 **Guia completo:** [GETTING_STARTED.md](GETTING_STARTED.md)
 
 ## Architecture
 
@@ -241,3 +273,94 @@ Edit `.env` file to configure:
 - TICKET-003: Help request → P3 → general → resolved
 - TICKET-004: Angry customer → P1 → escalated (negative sentiment)
 - TICKET-005: Urgent refund → P1 → billing → escalated (SLA breach)
+
+## Development
+
+### Running Tests
+
+```bash
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests with coverage
+pytest
+
+# Run tests without coverage
+pytest --no-cov
+
+# Run specific test markers
+pytest -m unit          # Unit tests only
+pytest -m integration   # Integration tests only
+```
+
+### Load Testing
+
+```bash
+# Basic load test (50 users, 60 seconds)
+./scripts/run_load_test.sh
+
+# Custom parameters
+./scripts/run_load_test.sh 100 10 120s  # 100 users, 10/s spawn, 120s
+
+# Stress test preset
+./scripts/run_load_test.sh stress
+
+# Interactive mode (web UI)
+locust -f tests/load/locustfile.py --host http://localhost:8000
+```
+
+### Code Quality
+
+```bash
+# Lint code
+ruff check src/ tests/
+
+# Format code
+black src/ tests/
+
+# Type checking
+mypy src/
+
+# Security scan
+bandit -r src/
+```
+
+## CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration:
+
+| Job | Description |
+|-----|-------------|
+| **Lint & Format** | Runs Ruff, Black, and MyPy |
+| **Tests & Coverage** | Runs pytest with 70% minimum coverage |
+| **Security Scan** | Bandit, Safety, and Gitleaks |
+| **Docker Build** | Builds and scans image with Trivy |
+| **Deploy Check** | Validates deployment readiness |
+
+### Manual Load Testing
+
+Trigger a load test from GitHub Actions:
+1. Go to Actions → Load Testing
+2. Click "Run workflow"
+3. Configure users, spawn rate, and duration
+
+## Docker
+
+### Build and Run
+
+```bash
+# Build image
+docker build -t customer-support .
+
+# Run with docker-compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f api
+```
+
+### Health Check
+
+```bash
+curl http://localhost:8000/api/health
+```

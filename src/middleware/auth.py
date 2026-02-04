@@ -71,8 +71,8 @@ async def verify_api_key(x_api_key: str = Header(None, alias="X-API-Key")) -> di
             detail="API key has expired"
         )
 
-    # Update last_used_at (fire and forget - don't await)
-    api_keys_collection.update_one(
+    # Update last_used_at (awaited to ensure proper async handling)
+    await api_keys_collection.update_one(
         {"api_key": x_api_key},
         {"$set": {"last_used_at": datetime.now()}}
     )

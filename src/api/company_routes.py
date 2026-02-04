@@ -90,7 +90,7 @@ async def create_company_config(
         logger.error(f"Failed to create company config: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create company config: {str(e)}"
+            detail="Failed to create company config. Please try again later."
         )
 
 
@@ -140,7 +140,7 @@ async def get_company_config(
         logger.error(f"Failed to get company config: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get company config: {str(e)}"
+            detail="Failed to get company config. Please try again later."
         )
 
 
@@ -225,7 +225,7 @@ async def update_company_config(
         logger.error(f"Failed to update company config: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update company config: {str(e)}"
+            detail="Failed to update company config. Please try again later."
         )
 
 
@@ -276,7 +276,7 @@ async def delete_company_config(
         logger.error(f"Failed to delete company config: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete company config: {str(e)}"
+            detail="Failed to delete company config. Please try again later."
         )
 
 
@@ -314,5 +314,5 @@ async def list_company_configs(
         logger.error(f"Failed to list company configs: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list company configs: {str(e)}"
+            detail="Failed to list company configs. Please try again later."
         )

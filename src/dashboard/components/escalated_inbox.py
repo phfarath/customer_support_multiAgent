@@ -175,32 +175,42 @@ def render_escalated_inbox(company_id: str):
             with col_send:
                 if st.button("📤 Enviar Resposta", type="primary"):
                     if reply_text:
-                        _send_reply(selected_ticket_id, reply_text, close=False)
+                        _send_reply(selected_ticket_id, reply_text, close=False, company_id=company_id)
                         st.success("Resposta enviada!")
                         st.rerun()
                     else:
                         st.warning("Digite uma resposta.")
-            
+
             with col_close:
                 if st.button("✅ Resolver e Fechar"):
                     if reply_text:
-                        _send_reply(selected_ticket_id, reply_text, close=True)
+                        _send_reply(selected_ticket_id, reply_text, close=True, company_id=company_id)
                         st.success("Ticket resolvido!")
                         st.rerun()
                     else:
                         st.warning("Digite uma resposta final antes de fechar.")
 
 
-def _send_reply(ticket_id: str, reply_text: str, close: bool):
-    """Send human reply and optionally close the ticket. Also sends to Telegram."""
+def _send_reply(ticket_id: str, reply_text: str, close: bool, company_id: str = None):
+    """Send human reply and optionally close the ticket. Also sends to Telegram.
+
+    Args:
+        ticket_id: The ticket ID to reply to
+        reply_text: The reply text
+        close: Whether to close the ticket
+        company_id: Company ID for security isolation (prevents IDOR)
+    """
     import requests
     from src.config import settings
-    
+
     tickets_col = get_collection(COLLECTION_TICKETS)
     interactions_col = get_collection(COLLECTION_INTERACTIONS)
-    
-    # Get ticket to find external_user_id
-    ticket = tickets_col.find_one({"ticket_id": ticket_id})
+
+    # Get ticket to find external_user_id (with company_id filter to prevent IDOR)
+    query = {"ticket_id": ticket_id}
+    if company_id:
+        query["company_id"] = company_id
+    ticket = tickets_col.find_one(query)
     
     # Add interaction
     interactions_col.insert_one({

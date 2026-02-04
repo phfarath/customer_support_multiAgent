@@ -58,8 +58,8 @@ SENSITIVE_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r'(AKIA|ABIA|ACCA|ASIA)[A-Z0-9]{16}'), '[AWS_KEY_REDACTED]'),
     (re.compile(r'(aws_secret_access_key|aws_access_key_id)["\s:=]+["\']?([^\s"\']+)["\']?', re.IGNORECASE), r'\1=[REDACTED]'),
 
-    # Email addresses (partial masking)
-    (re.compile(r'([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'), lambda m: f"{m.group(1)[:2]}***@{m.group(2)}"),
+    # Email addresses (aggressive masking - hide both local part and most of domain)
+    (re.compile(r'([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,})'), lambda m: f"{m.group(1)[:1]}***@***.{m.group(3)}"),
 
     # Brazilian CPF
     (re.compile(r'\b(\d{3})[.-]?(\d{3})[.-]?(\d{3})[.-]?(\d{2})\b'), r'***.\1.***-**'),
