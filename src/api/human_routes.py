@@ -67,17 +67,13 @@ async def human_reply(
     interactions_col = get_collection(COLLECTION_INTERACTIONS)
     audit_col = get_collection(COLLECTION_AUDIT_LOGS)
 
-    # 1. Find ticket
-    ticket = await tickets_col.find_one({"ticket_id": request.ticket_id})
+    # 1. Find ticket with company isolation (prevents IDOR)
+    ticket = await tickets_col.find_one({
+        "ticket_id": request.ticket_id,
+        "company_id": api_key["company_id"]
+    })
 
     if not ticket:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Ticket {request.ticket_id} not found"
-        )
-
-    # Enforce company isolation
-    if ticket.get("company_id") != api_key["company_id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Ticket {request.ticket_id} not found"

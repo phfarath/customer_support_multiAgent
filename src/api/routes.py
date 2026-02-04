@@ -2,7 +2,7 @@
 FastAPI routes for the customer support system
 """
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends, Request
+from fastapi import APIRouter, HTTPException, status, Depends, Request, Query
 from typing import Dict, Any
 from datetime import datetime
 from slowapi import Limiter
@@ -383,7 +383,7 @@ async def list_tickets(
     priority: TicketPriority = None,
     category: TicketCategory = None,
     tags: str = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=1000, description="Maximum tickets to return (1-1000)"),
     api_key: dict = Depends(verify_api_key)
 ) -> Dict[str, Any]:
     """
