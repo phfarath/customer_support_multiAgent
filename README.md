@@ -9,6 +9,31 @@
 
 AI-powered customer support system using MongoDB + Python with FastAPI.
 
+> **🚀 Primeira vez aqui?** Siga o [Guia de Configuração](GETTING_STARTED.md) para ter o bot funcionando em 15 minutos!
+
+## Quick Start
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/phfarath/customer_support_multiAgent.git
+cd customer_support_multiAgent
+
+# 2. Configure as variáveis de ambiente
+cp .env.example .env
+# Edite .env com suas credenciais (OpenAI, Telegram, etc.)
+
+# 3. Inicie com Docker
+docker compose up -d
+
+# 4. Verifique se está funcionando
+curl http://localhost:8000/api/health
+
+# 5. Crie suas credenciais
+docker compose exec api python scripts/create_initial_api_key.py --company-id minha_empresa --name "Dev Key"
+```
+
+📖 **Guia completo:** [GETTING_STARTED.md](GETTING_STARTED.md)
+
 ## Architecture
 
 ### 4 Specialized Agents
