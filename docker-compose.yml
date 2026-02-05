@@ -12,27 +12,27 @@ version: '3.8'
 
 services:
   # -------------------- MongoDB Database --------------------
-  mongodb:
-    image: mongo:7.0
-    container_name: customer-support-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
-      MONGO_INITDB_DATABASE: ${DATABASE_NAME:-customer_support_esc}
-    ports:
-      - "${MONGO_PORT:-27017}:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    networks:
-      - customer-support-network
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
+  # mongodb:
+  #   image: mongo:7.0
+  #   container_name: customer-support-mongodb
+  #   restart: unless-stopped
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+  #     MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+  #     MONGO_INITDB_DATABASE: ${DATABASE_NAME:-customer_support_esc}
+  #   ports:
+  #     - "${MONGO_PORT:-27017}:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #     - mongodb_config:/data/configdb
+  #   networks:
+  #     - customer-support-network
+  #   healthcheck:
+  #     test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 20s
 
   # -------------------- FastAPI Application --------------------
   api:
@@ -53,10 +53,6 @@ services:
       - ./chroma_db:/app/chroma_db
       - ./logs:/app/logs
       - ./scripts:/app/scripts
-
-    depends_on:
-      mongodb:
-        condition: service_healthy
 
     networks:
       - customer-support-network
@@ -87,8 +83,6 @@ services:
       - ./logs:/app/logs
 
     depends_on:
-      mongodb:
-        condition: service_healthy
       api:
         condition: service_healthy
 
@@ -116,8 +110,6 @@ services:
       - ./logs:/app/logs
 
     depends_on:
-      mongodb:
-        condition: service_healthy
       api:
         condition: service_healthy
 
@@ -140,6 +132,6 @@ volumes:
     name: customer-support-mongodb-data
     driver: local
 
-  mongodb_config:
-    name: customer-support-mongodb-config
-    driver: local
+  # mongodb_config:
+  #   name: customer-support-mongodb-config
+  #   driver: local

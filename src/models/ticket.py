@@ -19,6 +19,7 @@ class TicketStatus(str, Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
     ESCALATED = "escalated"
+    AUTO_RESOLVED = "auto_resolved"
     RESOLVED = "resolved"
 
 
@@ -84,6 +85,13 @@ class Ticket(TicketBase):
     id: Optional[str] = Field(None, alias="_id")
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    last_customer_message_at: Optional[datetime] = None
+    last_agent_message_at: Optional[datetime] = None
+    last_escalated_at: Optional[datetime] = None
+    auto_closed_at: Optional[datetime] = None
+    reopened_at: Optional[datetime] = None
+    reopen_count: int = 0
+    lifecycle_stage: Optional[str] = None
     lock_version: int = 0
 
     class Config:

@@ -40,6 +40,10 @@ class BotSession(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_message_at: Optional[datetime] = None
+    outside_hours_notified: bool = Field(
+        default=False,
+        description="Whether the outside-business-hours warning was already sent in current conversation",
+    )
     
     class Config:
         use_enum_values = True

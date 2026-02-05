@@ -26,6 +26,33 @@ class IntegrationConfig(BaseModel):
     """Configuration for external integrations"""
     telegram_bot_token: Optional[str] = Field(None, description="Telegram Bot Token")
     whatsapp_api_key: Optional[str] = Field(None, description="WhatsApp API Key")
+
+
+class TicketLifecycleConfig(BaseModel):
+    """Automatic follow-up and closure behavior for escalated tickets."""
+    followup_1_hours: int = Field(24, description="Hours after escalation to send first follow-up")
+    followup_2_hours: int = Field(48, description="Hours after escalation to send second follow-up")
+    auto_close_hours: int = Field(72, description="Hours after escalation to auto-close the ticket")
+
+    followup_1_message: str = Field(
+        "Olá! Conseguimos resolver o problema que você reportou? "
+        "Se sim, pode confirmar para fecharmos o atendimento? 😊",
+        description="First follow-up message",
+    )
+    followup_2_message: str = Field(
+        "Caso não recebamos retorno em até 24h, marcaremos este atendimento como resolvido. "
+        "Você pode reabrir a qualquer momento se precisar! 📝",
+        description="Second follow-up message",
+    )
+    auto_close_message: str = Field(
+        "Como não recebemos retorno, marcamos este atendimento como resolvido. "
+        "Se precisar de ajuda, é só nos chamar novamente! 👋",
+        description="Message sent when ticket is auto-closed",
+    )
+
+    enable_auto_followup: bool = Field(True, description="Enable automated follow-up messages")
+    enable_auto_close: bool = Field(True, description="Enable automatic ticket closure")
+    reopen_on_customer_reply: bool = Field(True, description="Reopen auto-closed ticket on customer reply")
     
 
 class CompanyConfig(BaseModel):
@@ -58,6 +85,7 @@ class CompanyConfig(BaseModel):
     # Integrations
     knowledge_base: Optional[KnowledgeBaseConfig] = Field(default_factory=KnowledgeBaseConfig, description="Knowledge Base Config")
     integrations: Optional[IntegrationConfig] = Field(default_factory=IntegrationConfig, description="Integration credentials")
+    lifecycle_config: TicketLifecycleConfig = Field(default_factory=TicketLifecycleConfig, description="Ticket lifecycle automation")
     
     # Custom Instructions (Global)
     custom_instructions: Optional[str] = Field(
@@ -118,6 +146,7 @@ class CompanyConfigCreate(BaseModel):
     integrations: Optional[IntegrationConfig] = None
     escalation_contact: Optional[str] = None
     escalation_email: Optional[str] = None
+    lifecycle_config: Optional[TicketLifecycleConfig] = None
 
 
 class CompanyConfigUpdate(BaseModel):
@@ -145,3 +174,4 @@ class CompanyConfigUpdate(BaseModel):
     integrations: Optional[IntegrationConfig] = None
     escalation_contact: Optional[str] = None
     escalation_email: Optional[str] = None
+    lifecycle_config: Optional[TicketLifecycleConfig] = None

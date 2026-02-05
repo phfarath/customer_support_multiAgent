@@ -16,7 +16,12 @@ from .interaction import Interaction, InteractionCreate, InteractionType, AIDeci
 from .routing_decision import RoutingDecision, RoutingDecisionCreate
 from .audit_log import AuditLog, AuditLogCreate, AuditOperation
 from .ingest import IngestMessageRequest, IngestMessageResponse, IngestChannel
-from .company_config import CompanyConfig, CompanyConfigCreate, CompanyConfigUpdate
+from .company_config import (
+    CompanyConfig,
+    CompanyConfigCreate,
+    CompanyConfigUpdate,
+    TicketLifecycleConfig,
+)
 from .user import User, UserCreate
 
 __all__ = [
@@ -44,6 +49,7 @@ __all__ = [
     "CompanyConfig",
     "CompanyConfigCreate",
     "CompanyConfigUpdate",
+    "TicketLifecycleConfig",
     "User",
     "UserCreate",
 ]

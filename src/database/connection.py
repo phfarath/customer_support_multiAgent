@@ -68,6 +68,7 @@ COLLECTION_CUSTOMERS = "customers"
 COLLECTION_BOT_SESSIONS = "bot_sessions"
 COLLECTION_API_KEYS = "api_keys"
 COLLECTION_USERS = "users"
+COLLECTION_TICKET_LIFECYCLE_EVENTS = "ticket_lifecycle_events"
 
 
 async def ensure_indexes():
@@ -81,6 +82,8 @@ async def ensure_indexes():
     await db[COLLECTION_TICKETS].create_index([("current_phase", 1), ("status", 1)])
     await db[COLLECTION_TICKETS].create_index([("company_id", 1), ("category", 1)])
     await db[COLLECTION_TICKETS].create_index([("tags", 1)])  # Multikey index for tag filtering
+    await db[COLLECTION_TICKETS].create_index([("external_user_id", 1), ("channel", 1), ("status", 1)])
+    await db[COLLECTION_TICKETS].create_index([("status", 1), ("last_customer_message_at", 1)])
     
     # Agent states indexes - drop incorrect index if exists and create correct composite index
     try:
@@ -121,3 +124,8 @@ async def ensure_indexes():
     # Users indexes
     await db[COLLECTION_USERS].create_index([("email", 1)], unique=True)
     await db[COLLECTION_USERS].create_index([("company_id", 1)])
+
+    # Ticket lifecycle indexes
+    await db[COLLECTION_TICKET_LIFECYCLE_EVENTS].create_index([("ticket_id", 1), ("status", 1)])
+    await db[COLLECTION_TICKET_LIFECYCLE_EVENTS].create_index([("status", 1), ("scheduled_at", 1)])
+    await db[COLLECTION_TICKET_LIFECYCLE_EVENTS].create_index([("company_id", 1), ("status", 1)])

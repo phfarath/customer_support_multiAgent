@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from src.adapters.telegram_adapter import TelegramAdapter
 from src.models import IngestMessageRequest, IngestChannel
-from src.api.ingest_routes import ingest_message
+from src.api.ingest_routes import process_ingest_message
 from src.middleware.auth import verify_api_key
 from src.middleware.rate_limiter import get_rate_limit_key_ip_only
 from src.utils.sanitization import sanitize_text, sanitize_identifier, sanitize_company_id
@@ -195,10 +195,10 @@ async def telegram_webhook(request: Request) -> Dict[str, Any]:
             company_id=company_id
         )
 
-        # Process the message through the ingest endpoint
-        logger.info(f"Calling ingest_message with: {ingest_request}")
-        response = await ingest_message(ingest_request)
-        logger.info(f"Received response from ingest_message: {response}")
+        # Process using the shared ingest workflow (no FastAPI Request/Depends needed)
+        logger.info(f"Calling process_ingest_message with: {ingest_request}")
+        response = await process_ingest_message(ingest_request)
+        logger.info(f"Received response from process_ingest_message: {response}")
         
         # Send the reply back to Telegram
         if chat_id and response.reply_text:

@@ -23,9 +23,10 @@ from src.models import TicketChannel
 from src.models.bot_session import BotSession, SessionState
 from src.models.customer import Customer
 from src.models.company_config import CompanyConfig
-from src.api.ingest_routes import ingest_message
+from src.api.ingest_routes import process_ingest_message
 from src.models import IngestMessageRequest, IngestChannel
 from src.utils.business_hours import check_business_hours
+from src.utils.ticket_lifecycle import process_due_lifecycle_events
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ class TelegramBot:
         self.rate_limit_max = settings.bot_rate_limit_messages
         self.rate_limit_block = settings.bot_rate_limit_block_time  # segundos
         self._shutdown = False
+        self._lifecycle_task = None
         
     async def start_polling(self, timeout: int = None):
         """Inicia o bot em modo polling"""
@@ -120,6 +122,9 @@ class TelegramBot:
         offset = 0
         
         logger.info("🤖 Bot started in polling mode")
+
+        if self._lifecycle_task is None:
+            self._lifecycle_task = asyncio.create_task(self._run_lifecycle_loop())
         
         # Limpar webhook anterior se existir para evitar conflito
         try:
@@ -146,6 +151,15 @@ class TelegramBot:
             except Exception as e:
                 logger.error(f"Error in polling loop: {e}", exc_info=True)
                 await asyncio.sleep(5)
+
+    async def _run_lifecycle_loop(self):
+        """Executes ticket lifecycle events periodically."""
+        while not self._shutdown:
+            try:
+                await process_due_lifecycle_events()
+            except Exception as e:
+                logger.error(f"Lifecycle processor failed: {e}", exc_info=True)
+            await asyncio.sleep(3600)
 
     async def _get_updates(self, offset: int, timeout: int) -> List[Dict[str, Any]]:
         """Busca updates do Telegram via adapter (necessário implementar método getUpdates no adapter)"""
@@ -318,6 +332,11 @@ class TelegramBot:
         if command == "/start":
             # Se já registrado, mostra boas-vindas da empresa
             if session.state == SessionState.REGISTERED and session.company_id:
+                await self.update_session_state(
+                    session,
+                    session.state,
+                    outside_hours_notified=False,
+                )
                 welcome = await self.get_welcome_message(session.company_id, session.first_name)
                 await self.send_message(chat_id, "ℹ️ Conversa reiniciada.\n\n" + welcome)
             else:
@@ -499,9 +518,22 @@ class TelegramBot:
         is_open, hours_str, outside_msg = await self.check_business_hours(session.company_id)
         
         if not is_open:
-            # Envia aviso mas continua processamento
-            msg = outside_msg.format(business_hours=hours_str)
-            await self.send_message(chat_id, msg)
+            # Envia aviso somente no primeiro contato da conversa
+            if not session.outside_hours_notified:
+                msg = outside_msg.format(business_hours=hours_str)
+                await self.send_message(chat_id, msg)
+                await self.update_session_state(
+                    session,
+                    session.state,
+                    outside_hours_notified=True
+                )
+        elif session.outside_hours_notified:
+            # Quando voltar para horário comercial, reseta para próxima vez.
+            await self.update_session_state(
+                session,
+                session.state,
+                outside_hours_notified=False
+            )
             
         # Ingestão
         try:
@@ -511,6 +543,7 @@ class TelegramBot:
                  channel=IngestChannel.TELEGRAM,
                  external_user_id=f"telegram:{chat_id}",
                  text=text,
+                 company_id=session.company_id,
                  metadata={
                      "chat_id": chat_id,
                      "username": session.username,
@@ -520,8 +553,11 @@ class TelegramBot:
                  }
              )
              
-             # Chamar ingest_message diretamente
-             response = await ingest_message(request)
+             # Chamar fluxo de ingestão interno (sem Request/Depends do FastAPI)
+             response = await process_ingest_message(
+                 payload=request,
+                 authenticated_company_id=session.company_id
+             )
              
              if response.reply_text:
                  await self.send_message(chat_id, response.reply_text)

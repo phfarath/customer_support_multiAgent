@@ -17,6 +17,7 @@ from .connection import (
     COLLECTION_BOT_SESSIONS,
     COLLECTION_API_KEYS,
     COLLECTION_USERS,
+    COLLECTION_TICKET_LIFECYCLE_EVENTS,
 )
 from .transactions import with_transaction
 
@@ -37,4 +38,5 @@ __all__ = [
     "COLLECTION_BOT_SESSIONS",
     "COLLECTION_API_KEYS",
     "COLLECTION_USERS",
+    "COLLECTION_TICKET_LIFECYCLE_EVENTS",
 ]

@@ -28,15 +28,17 @@ from src.database.ticket_operations import (
 )
 from src.utils import AgentPipeline
 from src.utils.email_notifier import send_escalation_email
+from src.utils.ticket_lifecycle import (
+    cancel_pending_events,
+    schedule_lifecycle_events_for_escalated_ticket,
+)
 from src.models.interaction import InteractionType
-from src.models import CompanyConfig
+from src.models import CompanyConfig, TicketLifecycleConfig
 from src.middleware.auth import verify_api_key
 from src.utils.sanitization import (
     sanitize_text,
     sanitize_text_with_pii_detection,
     sanitize_identifier,
-    sanitize_phone,
-    sanitize_email,
     sanitize_company_id
 )
 from src.security.error_handler import SecureError
@@ -139,18 +141,37 @@ async def ingest_message(
     Returns:
         Response with reply_text, escalation status, and ticket information
     """
+    # request is required by slowapi decorator, even when not directly used here.
+    _ = request
+    return await process_ingest_message(
+        payload=payload,
+        authenticated_company_id=api_key["company_id"],
+    )
+
+
+async def process_ingest_message(
+    payload: IngestMessageRequest,
+    authenticated_company_id: str | None = None,
+) -> IngestMessageResponse:
+    """
+    Core ingestion workflow reusable by HTTP routes and internal callers.
+
+    Args:
+        payload: Message ingestion payload
+        authenticated_company_id: Company ID asserted by auth context (if any)
+    """
     logger.info(f"Received ingest message request: {payload}")
 
     # Enforce company isolation
-    if payload.company_id and payload.company_id != api_key["company_id"]:
+    if authenticated_company_id and payload.company_id and payload.company_id != authenticated_company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot ingest message for different company"
         )
 
-    # Set company_id from API key if not provided
-    if not payload.company_id:
-        payload.company_id = api_key["company_id"]
+    # Set company_id from authenticated context if not provided
+    if not payload.company_id and authenticated_company_id:
+        payload.company_id = authenticated_company_id
 
     # SANITIZE ALL INPUTS
     try:
@@ -161,10 +182,6 @@ async def ingest_message(
         text, pii_detected, pii_types = sanitize_text_with_pii_detection(
             payload.text, max_length=4000
         )
-
-        # Sanitize optional fields
-        customer_phone = sanitize_phone(payload.customer_phone) if payload.customer_phone else None
-        customer_email = sanitize_email(payload.customer_email) if payload.customer_email else None
 
     except ValueError as e:
         logger.warning(f"Input validation failed: {e}")
@@ -178,6 +195,11 @@ async def ingest_message(
         logger.info(f"PII detected in message for company {company_id}: types={pii_types}")
 
     pipeline = AgentPipeline()
+    tickets_collection = get_collection(COLLECTION_TICKETS)
+    now = datetime.utcnow()
+    company_config = await _get_company_config(company_id)
+    lifecycle_cfg = company_config.lifecycle_config if company_config else TicketLifecycleConfig()
+    company_config_dict = company_config.model_dump() if company_config else None
 
     try:
         # Convert IngestChannel to TicketChannel
@@ -194,10 +216,68 @@ async def ingest_message(
             company_id=company_id
         )
         logger.info(f"Ticket found/created: ticket_id={ticket.get('ticket_id')}, is_new={is_new_ticket}")
-        
+
         ticket_id = ticket["ticket_id"]
         was_escalated = ticket.get("status") == TicketStatus.ESCALATED
-        
+        was_auto_resolved = ticket.get("status") == TicketStatus.AUTO_RESOLVED
+
+        # Reopen auto-closed tickets on customer reply when enabled.
+        if was_auto_resolved and lifecycle_cfg.reopen_on_customer_reply:
+            await tickets_collection.update_one(
+                {"ticket_id": ticket_id},
+                {
+                    "$set": {
+                        "status": TicketStatus.ESCALATED,
+                        "lifecycle_stage": None,
+                        "reopened_at": now,
+                        "updated_at": now,
+                    },
+                    "$inc": {"reopen_count": 1},
+                },
+            )
+            await cancel_pending_events(ticket_id)
+            was_escalated = True
+            ticket["status"] = TicketStatus.ESCALATED
+
+        # Cold escalated tickets should not block new requests forever.
+        if was_escalated:
+            reference_time = ticket.get("last_customer_message_at") or ticket.get("updated_at") or ticket.get("created_at")
+            if reference_time:
+                age_hours = (now - reference_time).total_seconds() / 3600
+                if age_hours >= lifecycle_cfg.auto_close_hours:
+                    await tickets_collection.update_one(
+                        {"ticket_id": ticket_id},
+                        {
+                            "$set": {
+                                "status": TicketStatus.AUTO_RESOLVED,
+                                "lifecycle_stage": "auto_closed_cold_start",
+                                "auto_closed_at": now,
+                                "updated_at": now,
+                            }
+                        },
+                    )
+                    await cancel_pending_events(ticket_id)
+
+                    ticket, is_new_ticket = await find_or_create_ticket(
+                        external_user_id=external_user_id,
+                        channel=ticket_channel,
+                        text=text,
+                        company_id=company_id,
+                        include_escalated=False,
+                    )
+                    ticket_id = ticket["ticket_id"]
+                    was_escalated = False
+                    logger.info(
+                        "Created new ticket for stale escalated conversation: old_age_hours=%.1f new_ticket_id=%s",
+                        age_hours,
+                        ticket_id,
+                    )
+
+        await tickets_collection.update_one(
+            {"ticket_id": ticket_id},
+            {"$set": {"last_customer_message_at": now, "updated_at": now}},
+        )
+
         # Add customer interaction (using sanitized text with PII info)
         await add_interaction(
             ticket_id=ticket_id,
@@ -230,6 +310,12 @@ async def ingest_message(
         })
 
         if was_escalated:
+            await cancel_pending_events(ticket_id)
+            await schedule_lifecycle_events_for_escalated_ticket(
+                ticket=ticket,
+                company_config=company_config_dict,
+                now=now,
+            )
             return IngestMessageResponse(
                 success=True,
                 ticket_id=ticket_id,
@@ -258,9 +344,7 @@ async def ingest_message(
         else:
             await update_ticket_status(ticket_id, TicketStatus.IN_PROGRESS)
         
-        company_config = None
         if escalated and not was_escalated:
-            company_config = await _get_company_config(ticket.get("company_id"))
             from src.config import settings
             
             # 1. Generate warning message (BEFORE escalation confirmation)
@@ -291,11 +375,21 @@ async def ingest_message(
                 content=reply_text,
                 channel=payload.channel.value
             )
-            
+
+            await tickets_collection.update_one(
+                {"ticket_id": ticket_id},
+                {"$set": {"last_agent_message_at": datetime.utcnow(), "updated_at": datetime.utcnow()}},
+            )
+
             # Update ticket interactions count again
             await update_ticket_interactions_count(ticket_id)
 
         if escalated and not was_escalated:
+            await schedule_lifecycle_events_for_escalated_ticket(
+                ticket=ticket,
+                company_config=company_config_dict,
+                now=datetime.utcnow(),
+            )
             escalation_email = None
             company_name = None
             if company_config:
@@ -312,6 +406,8 @@ async def ingest_message(
                 company_name=company_name,
                 to_email=escalation_email
             )
+        elif not escalated:
+            await cancel_pending_events(ticket_id)
         
         return IngestMessageResponse(
             success=True,

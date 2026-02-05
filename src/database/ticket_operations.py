@@ -13,6 +13,7 @@ async def find_or_create_ticket(
     channel: TicketChannel,
     text: str,
     company_id: Optional[str] = None,
+    include_escalated: bool = True,
     session: Optional[AsyncIOMotorClientSession] = None
 ) -> tuple[Dict[str, Any], bool]:
     """
@@ -30,12 +31,15 @@ async def find_or_create_ticket(
     """
     collection = get_collection(COLLECTION_TICKETS)
     
-    # Try to find an existing open ticket for this user and channel
-    # Include ESCALATED to prevent creating new ticket when user sends follow-up
+    # Try to find an existing active ticket for this user and channel.
+    active_statuses = [TicketStatus.OPEN, TicketStatus.IN_PROGRESS]
+    if include_escalated:
+        active_statuses.append(TicketStatus.ESCALATED)
+
     filter_query = {
         "external_user_id": external_user_id,
         "channel": channel,
-        "status": {"$in": [TicketStatus.OPEN, TicketStatus.IN_PROGRESS, TicketStatus.ESCALATED]}
+        "status": {"$in": active_statuses}
     }
     
     ticket = await collection.find_one(filter_query, session=session)
@@ -71,6 +75,13 @@ async def find_or_create_ticket(
         "status": TicketStatus.OPEN,
         "current_phase": TicketPhase.TRIAGE,
         "interactions_count": 0,
+        "last_customer_message_at": datetime.utcnow(),
+        "last_agent_message_at": None,
+        "last_escalated_at": None,
+        "auto_closed_at": None,
+        "reopened_at": None,
+        "reopen_count": 0,
+        "lifecycle_stage": None,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
         "lock_version": 0
